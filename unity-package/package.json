@@ -1,0 +1,18 @@
+{
+    "name": "com.unity-ai-tools",
+    "version": "0.1.0",
+    "displayName": "Unity AI Tools",
+    "description": "MCP bridge for AI-assisted Unity development — lets AI assistants control the Unity Editor via the Model Context Protocol.",
+    "unity": "2021.3",
+    "keywords": [
+        "ai",
+        "mcp",
+        "tools",
+        "automation"
+    ],
+    "author": {
+        "name": "Unity AI Tools"
+    },
+    "license": "MIT",
+    "type": "tool"
+}
