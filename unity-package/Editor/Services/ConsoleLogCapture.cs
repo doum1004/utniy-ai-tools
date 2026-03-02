@@ -75,12 +75,9 @@ namespace UnityAITools.Editor.Services
                         { "timestamp", entry.timestamp }
                     };
 
-                    if (format == "detailed" || format == "summary")
-                    {
-                        dict["message"] = entry.message;
-                    }
+                    dict["message"] = entry.message;
 
-                    if (includeStackTrace && !string.IsNullOrEmpty(entry.stackTrace))
+                    if ((includeStackTrace || format == "detailed") && !string.IsNullOrEmpty(entry.stackTrace))
                     {
                         dict["stackTrace"] = entry.stackTrace;
                     }

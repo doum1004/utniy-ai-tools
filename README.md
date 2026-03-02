@@ -56,6 +56,10 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 
 `manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `set_active_instance`
 
+## Acknowledgements
+
+Inspired by [unity-mcp](https://github.com/nicholascpark/unity-mcp).
+
 ## License
 
 MIT
