@@ -99,7 +99,24 @@ Open the Unity Test Runner (`Window > General > Test Runner`) and run **EditMode
 
 ### CI
 
-GitHub Actions runs server tests and TypeScript type checking on every pull request and push to `main`.
+GitHub Actions runs three jobs on every pull request and push to `main`:
+
+| Job | What it runs |
+|-----|-------------|
+| MCP Server Tests | `bun test` — 71 unit tests |
+| MCP Server Type Check | `tsc --noEmit` |
+| Unity Package EditMode Tests | GameCI `unity-test-runner` — EditMode tests via Unity 6 |
+
+The Unity job requires the following GitHub repository secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `UNITY_LICENSE` | Contents of a Unity `.ulf` activation file |
+| `UNITY_EMAIL` | Unity account email |
+| `UNITY_PASSWORD` | Unity account password |
+| `UNITY_SERIAL` | Unity Pro serial number |
+
+The `unity-project/Library/` folder is cached between runs keyed on `manifest.json` and `packages-lock.json` to avoid re-importing packages on every run.
 
 ## Acknowledgements
 
