@@ -3,20 +3,21 @@
  *
  * Starts both:
  * 1. An HTTP server with WebSocket for Unity plugin connections
- * 2. An MCP server (stdio or HTTP Streamable) for AI client connections
+ * 2. An MCP server (stdio or Streamable HTTP) for AI client connections
  *
  * Usage:
- *   bun run src/index.ts                    # HTTP Streamable (default)
+ *   bun run src/index.ts                    # Streamable HTTP (default)
  *   bun run src/index.ts --transport stdio  # stdio transport
  */
 
 import express from "express";
 import cors from "cors";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { PluginRegistry } from "./transport/plugin-registry";
 import { UnityBridge } from "./transport/unity-bridge";
 import { createMcpServer } from "./server";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 // ------------------------------------------------------------------
 // Configuration
@@ -47,9 +48,7 @@ async function main(): Promise<void> {
     const wsServer = Bun.serve({
         port: WS_PORT,
         fetch(req, server) {
-            // Upgrade WebSocket connections
             if (server.upgrade(req, { data: { sessionId: undefined } })) return undefined;
-            // Health check endpoint
             return new Response(JSON.stringify({ status: "ok", connections: registry.sessionCount }), {
                 headers: { "Content-Type": "application/json" },
             });
@@ -59,39 +58,63 @@ async function main(): Promise<void> {
 
     console.log(`🔌 Unity WebSocket server listening on ws://localhost:${wsServer.port}`);
 
-    // 4. Start MCP transport
+    // 3. Start MCP transport
     if (TRANSPORT === "stdio") {
         console.log("📡 MCP transport: stdio");
         const mcpServer = createMcpServer(bridge);
         const transport = new StdioServerTransport();
         await mcpServer.connect(transport);
     } else {
-        // SSE transport with Express
         const app = express();
         app.use(cors());
 
-        const transports = new Map<string, SSEServerTransport>();
+        const sessions = new Map<string, { transport: StreamableHTTPServerTransport; server: ReturnType<typeof createMcpServer> }>();
 
-        app.get("/mcp", async (_req, res) => {
-            const transport = new SSEServerTransport("/mcp/messages", res);
-            transports.set(transport.sessionId, transport);
+        app.post("/mcp", async (req, res) => {
+            const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-            res.on("close", () => {
-                transports.delete(transport.sessionId);
+            if (sessionId && sessions.has(sessionId)) {
+                const session = sessions.get(sessionId)!;
+                await session.transport.handleRequest(req, res);
+                return;
+            }
+
+            const transport = new StreamableHTTPServerTransport({
+                sessionIdGenerator: () => crypto.randomUUID(),
+                onsessioninitialized: (id) => {
+                    sessions.set(id, { transport, server });
+                },
             });
+
+            transport.onclose = () => {
+                const id = [...sessions.entries()].find(([, s]) => s.transport === transport)?.[0];
+                if (id) sessions.delete(id);
+            };
 
             const server = createMcpServer(bridge);
             await server.connect(transport);
+            await transport.handleRequest(req, res);
         });
 
-        app.post("/mcp/messages", async (req, res) => {
-            const sessionId = req.query.sessionId as string;
-            const transport = transports.get(sessionId);
-            if (transport) {
-                await transport.handlePostMessage(req, res);
-            } else {
-                res.status(400).send("Unknown session ID");
+        app.get("/mcp", async (req, res) => {
+            const sessionId = req.headers["mcp-session-id"] as string | undefined;
+            if (sessionId && sessions.has(sessionId)) {
+                const session = sessions.get(sessionId)!;
+                await session.transport.handleRequest(req, res);
+                return;
             }
+            res.status(400).json({ error: "No valid session. Send an initialize request first via POST." });
+        });
+
+        app.delete("/mcp", async (req, res) => {
+            const sessionId = req.headers["mcp-session-id"] as string | undefined;
+            if (sessionId && sessions.has(sessionId)) {
+                const session = sessions.get(sessionId)!;
+                await session.transport.handleRequest(req, res);
+                sessions.delete(sessionId);
+                return;
+            }
+            res.status(404).json({ error: "Session not found" });
         });
 
         app.get("/health", (_req, res) => {
@@ -100,12 +123,13 @@ async function main(): Promise<void> {
                 server: "unity-ai-tools",
                 version: "0.1.0",
                 unity_connected: bridge.isConnected,
-                connections: registry.sessionCount
+                connections: registry.sessionCount,
+                mcp_sessions: sessions.size
             });
         });
 
         app.listen(MCP_PORT, () => {
-            console.log(`📡 MCP SSE endpoint ready at http://localhost:${MCP_PORT}/mcp`);
+            console.log(`📡 MCP Streamable HTTP endpoint ready at http://localhost:${MCP_PORT}/mcp`);
             console.log(`❤️  Health check at http://localhost:${MCP_PORT}/health`);
         });
     }
@@ -115,7 +139,6 @@ async function main(): Promise<void> {
     console.log("Configure your MCP client to use: http://localhost:" + MCP_PORT + "/mcp");
     console.log();
 
-    // Graceful shutdown
     process.on("SIGINT", () => {
         console.log("\nShutting down...");
         bridge.shutdown();
