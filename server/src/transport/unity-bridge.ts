@@ -30,7 +30,7 @@ const PING_INTERVAL = Number(process.env.PING_INTERVAL) || 10;
 const PING_TIMEOUT = Number(process.env.PING_TIMEOUT) || 45;
 const FAST_FAIL_TIMEOUT = 2;
 
-const FAST_FAIL_COMMANDS = new Set(["read_console", "get_editor_state", "ping"]);
+const FAST_FAIL_COMMANDS = new Set(["read_console", "get_editor_state", "get_project_settings", "ping"]);
 
 /** WebSocket user data attached to each connection */
 interface WsData {

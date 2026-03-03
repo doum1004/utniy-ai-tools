@@ -137,10 +137,10 @@ namespace UnityAITools.Editor.Services
                 return "{" + string.Join(",", parts) + "}";
             }
 
-            if (obj is List<object> list)
+            if (obj is System.Collections.IList ilist)
             {
                 var parts = new List<string>();
-                foreach (var item in list)
+                foreach (var item in ilist)
                     parts.Add(Serialize(item));
                 return "[" + string.Join(",", parts) + "]";
             }

@@ -11,3 +11,4 @@ export { registerMaterialTools } from "./material";
 export { registerPrefabTools } from "./prefab";
 export { registerEditorTools } from "./editor";
 export { registerBatchTools } from "./batch";
+export { registerAnalysisTools } from "./analysis";

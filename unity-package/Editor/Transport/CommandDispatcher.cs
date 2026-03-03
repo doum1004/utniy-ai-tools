@@ -13,6 +13,11 @@ namespace UnityAITools.Editor.Transport
         private readonly Dictionary<string, IToolHandler> _handlers = new Dictionary<string, IToolHandler>();
 
         /// <summary>
+        /// Fired after a command is successfully dispatched, with the command name.
+        /// </summary>
+        public event Action<string> OnCommandExecuted;
+
+        /// <summary>
         /// Register a tool handler for a specific command name.
         /// </summary>
         public void RegisterHandler(string commandName, IToolHandler handler)
@@ -43,7 +48,9 @@ namespace UnityAITools.Editor.Transport
 
                 if (_handlers.TryGetValue(commandName, out var handler))
                 {
-                    return await handler.ExecuteAsync(commandName, paramsJson);
+                    var result = await handler.ExecuteAsync(commandName, paramsJson);
+                    OnCommandExecuted?.Invoke(commandName);
+                    return result;
                 }
 
                 return new CommandResult

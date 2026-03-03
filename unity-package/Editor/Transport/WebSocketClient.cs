@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
+using UnityAITools.Editor.Services;
 
 namespace UnityAITools.Editor.Transport
 {
@@ -121,8 +122,24 @@ namespace UnityAITools.Editor.Transport
         /// </summary>
         public async Task SendCommandResultAsync(string commandId, CommandResult result)
         {
-            var msg = new CommandResultMessage(commandId, result);
-            await SendAsync(JsonUtility.ToJson(msg));
+            // JsonUtility cannot serialize Dictionary<string,object> or 'object' fields,
+            // so we build the JSON manually using MiniJson which handles these types.
+            var resultDict = new Dictionary<string, object>
+            {
+                { "success", result.success }
+            };
+            if (result.error != null) resultDict["error"] = result.error;
+            if (result.data != null) resultDict["data"] = result.data;
+            if (result.hint != null) resultDict["hint"] = result.hint;
+
+            var msgDict = new Dictionary<string, object>
+            {
+                { "type", "command_result" },
+                { "id", commandId },
+                { "result", resultDict }
+            };
+
+            await SendAsync(MiniJson.Serialize(msgDict));
         }
 
         private async Task ReceiveLoop()

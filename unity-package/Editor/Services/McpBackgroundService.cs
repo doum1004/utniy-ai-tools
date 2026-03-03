@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityAITools.Editor.Transport;
@@ -28,6 +29,11 @@ namespace UnityAITools.Editor.Services
         private string _lastServerUrl = "ws://localhost:8091";
         private int _reconnectAttempt = 0;
         private static readonly int[] ReconnectScheduleMs = { 0, 1000, 3000, 5000, 10000, 30000 };
+
+        // Background refresh: keeps editor responsive and auto-refreshes after MCP commands
+        private double _lastBackgroundTick;
+        private const double BackgroundTickIntervalSec = 1.0;
+        private volatile bool _pendingRefresh;
 
         // SessionState keys — survive domain reloads but not Editor restarts
         private const string KeyWasConnected = "UnityAITools_WasConnected";
@@ -90,8 +96,25 @@ namespace UnityAITools.Editor.Services
             var prefabHandler = new PrefabHandler();
             _dispatcher.RegisterHandler("manage_prefabs", prefabHandler);
 
+            var analysisHandler = new AnalysisHandler();
+            _dispatcher.RegisterHandler("analyze_scene", analysisHandler);
+            _dispatcher.RegisterHandler("inspect_gameobject", analysisHandler);
+            _dispatcher.RegisterHandler("get_project_settings", analysisHandler);
+
             var batchHandler = new BatchHandler(_dispatcher);
             _dispatcher.RegisterHandler("batch_execute", batchHandler);
+
+            // Commands that modify assets/scripts and need a refresh
+            var refreshCommands = new HashSet<string> {
+                "create_script", "manage_script", "delete_script", "script_apply_edits",
+                "apply_text_edits", "manage_asset", "manage_material", "manage_prefabs",
+                "manage_gameobject", "manage_components", "manage_scene", "batch_execute"
+            };
+            _dispatcher.OnCommandExecuted += (cmd) =>
+            {
+                if (refreshCommands.Contains(cmd))
+                    _pendingRefresh = true;
+            };
 
             Client = new WebSocketClient(_dispatcher);
             
@@ -100,11 +123,13 @@ namespace UnityAITools.Editor.Services
                 _reconnectAttempt = 0;
                 SessionState.SetBool(KeyWasConnected, true);
                 SessionState.SetString(KeyServerUrl, _lastServerUrl);
+                EditorApplication.update += BackgroundTick;
                 NotifyStatusChanged(); 
             };
             
             Client.OnDisconnected += () => { 
-                IsConnecting = false; 
+                IsConnecting = false;
+                EditorApplication.update -= BackgroundTick;
                 NotifyStatusChanged(); 
                 
                 if (!_isDisconnectingIntentional)
@@ -136,8 +161,34 @@ namespace UnityAITools.Editor.Services
             }
         }
 
+        /// <summary>
+        /// Runs while connected to keep the editor responsive in background
+        /// and auto-refresh assets after MCP commands modify them.
+        /// </summary>
+        private void BackgroundTick()
+        {
+            var now = EditorApplication.timeSinceStartup;
+            if (now - _lastBackgroundTick < BackgroundTickIntervalSec)
+                return;
+            _lastBackgroundTick = now;
+
+            // Force the editor to repaint so update callbacks keep firing even when unfocused
+            if (!UnityEditorInternal.InternalEditorUtility.isApplicationActive)
+            {
+                UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+            }
+
+            // Auto-refresh after mutating commands
+            if (_pendingRefresh)
+            {
+                _pendingRefresh = false;
+                AssetDatabase.Refresh();
+            }
+        }
+
         private void OnQuitting()
         {
+            EditorApplication.update -= BackgroundTick;
             Disconnect();
             ConsoleLogCapture.Instance.Unregister();
         }
@@ -155,6 +206,8 @@ namespace UnityAITools.Editor.Services
         public void Disconnect()
         {
             _isDisconnectingIntentional = true;
+            _pendingRefresh = false;
+            EditorApplication.update -= BackgroundTick;
             SessionState.SetBool(KeyWasConnected, false);
             if (Client != null && Client.IsConnected)
             {

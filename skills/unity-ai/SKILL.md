@@ -68,6 +68,9 @@ Read `unity://editor/state` and check `ready_for_tools` is true before proceedin
 | `batch_execute` | Bulk operations in one round-trip |
 | `run_tests` | Run Unity tests |
 | `set_active_instance` | Target specific Unity instance |
+| `analyze_scene` | Scene stats, counts, missing refs, quality review |
+| `inspect_gameobject` | Deep object inspection — issues, refs, prefab status |
+| `get_project_settings` | Read physics, quality, rendering, player settings |
 
 ## Available Resources
 
@@ -99,7 +102,24 @@ Read `unity://editor/state` and check `ready_for_tools` is true before proceedin
 2. batch_execute(commands=[...]) — create multiple objects
 3. manage_material(action="create", ...) — create materials
 4. manage_material(action="assign", ...) — assign to objects
-5. manage_scene(action="save")
+5. analyze_scene(include_details=true) — review quality and catch issues
+6. manage_scene(action="screenshot") — visual verification
+7. manage_scene(action="save")
+```
+
+### Quality Review (Feedback Loop)
+
+After any significant scene changes, run this review cycle:
+
+```
+1. analyze_scene(include_details=true)
+   → Check missing_component_count == 0
+   → Check max_hierarchy_depth < 8
+   → Review triangle/material counts against platform budget
+2. manage_scene(action="screenshot") — visual check
+3. For flagged objects: inspect_gameobject(target="...") — check issues
+4. get_project_settings(categories=["quality", "rendering"]) — verify config
+5. Fix issues found → re-analyze to confirm
 ```
 
 ### Finding and Modifying Objects

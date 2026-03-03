@@ -54,7 +54,16 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 
 ## Available Tools
 
-`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `set_active_instance`
+`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings`
+
+## AI Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `unity-ai` | Core orchestrator — tool usage patterns and workflows |
+| `level-design` | Scene composition, lighting, camera setup, feedback loops |
+| `game-architecture` | Script patterns, prefab strategy, ScriptableObjects |
+| `optimization` | Performance review, batching, pooling, profiling workflows |
 
 ## Acknowledgements
 

@@ -14,6 +14,7 @@ import {
     registerPrefabTools,
     registerEditorTools,
     registerBatchTools,
+    registerAnalysisTools,
 } from "./tools/index";
 import { registerResources } from "./resources/index";
 
@@ -36,6 +37,7 @@ export function createMcpServer(bridge: UnityBridge): McpServer {
     registerPrefabTools(server, bridge);
     registerEditorTools(server, bridge);
     registerBatchTools(server, bridge);
+    registerAnalysisTools(server, bridge);
 
     // Register resources
     registerResources(server, bridge);
