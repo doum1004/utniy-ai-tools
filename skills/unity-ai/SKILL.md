@@ -44,6 +44,10 @@ batch_execute(commands=[
 
 Read `unity://editor/state` and check `ready_for_tools` is true before proceeding.
 
+### 4. Discover Menu Items Before Executing
+
+Read `unity://editor/menu-items` to find available menu paths before calling `execute_menu_item`. This avoids guessing at menu paths that may not exist.
+
 ## Core Tool Reference
 
 | Tool | Purpose |
@@ -58,6 +62,7 @@ Read `unity://editor/state` and check `ready_for_tools` is true before proceedin
 | `validate_script` | Check script for compilation errors |
 | `delete_script` | Delete script files |
 | `get_sha` | Get file SHA for safe editing |
+| `apply_text_edits` | Edit any text file (not just scripts) with SHA verification |
 | `manage_asset` | Search, move, rename, delete assets |
 | `manage_material` | Create, modify, assign materials |
 | `manage_prefabs` | Create, instantiate, manage prefabs |
