@@ -109,7 +109,14 @@ export class UnityBridge {
     /** Handle WebSocket disconnect */
     private async onDisconnect(ws: ServerWebSocket<WsData>, code: number): Promise<void> {
         const sessionId = ws.data.sessionId;
-        if (!sessionId) return;
+        if (!sessionId) {
+            console.log(`[UnityBridge] Connection closed before registration (code: ${code})`);
+            return;
+        }
+
+        // Grab project name before unregistering
+        const session = await this.registry.getSession(sessionId);
+        const label = session ? `${session.projectName} (${session.projectHash})` : sessionId;
 
         // Clean up connection
         this.connections.delete(sessionId);
@@ -132,7 +139,7 @@ export class UnityBridge {
         }
 
         await this.registry.unregister(sessionId);
-        console.log(`[UnityBridge] Session ${sessionId} disconnected (code: ${code})`);
+        console.log(`[UnityBridge] Disconnected: ${label} (code: ${code})`);
     }
 
     // ------------------------------------------------------------------
