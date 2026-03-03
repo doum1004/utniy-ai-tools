@@ -49,6 +49,9 @@ jobs:
   unity-tests:
     name: Unity Package EditMode Tests
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
