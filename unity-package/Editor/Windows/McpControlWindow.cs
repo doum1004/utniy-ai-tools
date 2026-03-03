@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityAITools.Editor.Transport;
 using UnityAITools.Editor.Tools;
 using UnityAITools.Editor.Services;
+using UnityAITools.Editor.Annotations;
 
 namespace UnityAITools.Editor.Windows
 {
@@ -20,27 +21,26 @@ namespace UnityAITools.Editor.Windows
         {
             var window = GetWindow<McpControlWindow>();
             window.titleContent = new GUIContent("Unity AI Tools");
-            window.minSize = new Vector2(350, 220);
+            window.minSize = new Vector2(350, 280);
         }
 
         private void OnEnable()
         {
-            // Load saved URL if any
             _serverUrl = EditorPrefs.GetString("UnityAITools_ServerUrl", "ws://localhost:8091");
             
-            // Subscribe to status changes from the background service
             if (McpBackgroundService.Instance != null)
             {
                 McpBackgroundService.Instance.OnStatusChanged += Repaint;
             }
             else
             {
-                // Edge case: if window opens before service init, delay subscribe
                 EditorApplication.delayCall += () => {
                     if (McpBackgroundService.Instance != null)
                         McpBackgroundService.Instance.OnStatusChanged += Repaint;
                 };
             }
+
+            AnnotationSession.Instance.OnChanged += Repaint;
         }
 
         private void OnDisable()
@@ -49,6 +49,7 @@ namespace UnityAITools.Editor.Windows
             {
                 McpBackgroundService.Instance.OnStatusChanged -= Repaint;
             }
+            AnnotationSession.Instance.OnChanged -= Repaint;
         }
 
         private void OnGUI()
@@ -113,6 +114,26 @@ namespace UnityAITools.Editor.Windows
                 svc.Disconnect();
             }
             EditorGUI.EndDisabledGroup();
+
+            GUILayout.Space(10);
+
+            // Annotation section
+            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+            var annotSession = AnnotationSession.Instance;
+            var annotLabel = annotSession.IsAnnotating ? "Stop Annotating" : "Annotate Scene";
+            var annotBgColor = annotSession.IsAnnotating ? new Color(1f, 0.4f, 0.4f) : new Color(0.4f, 0.8f, 1f);
+            var prevBg = GUI.backgroundColor;
+            GUI.backgroundColor = annotBgColor;
+            if (GUILayout.Button(annotLabel, GUILayout.Height(28)))
+            {
+                if (annotSession.IsAnnotating)
+                    annotSession.DisableAnnotating();
+                else
+                    annotSession.EnableAnnotating();
+                SceneView.RepaintAll();
+                AnnotationToolbar.ShowWindow();
+            }
+            GUI.backgroundColor = prevBg;
 
             GUILayout.Space(10);
 

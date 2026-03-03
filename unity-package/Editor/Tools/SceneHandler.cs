@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityAITools.Editor.Transport;
 using UnityAITools.Editor.Services;
+using UnityAITools.Editor.Annotations;
 
 namespace UnityAITools.Editor.Tools
 {
@@ -43,6 +44,7 @@ namespace UnityAITools.Editor.Tools
                 case "load": return LoadScene(p);
                 case "save": return SaveScene();
                 case "screenshot": return CaptureScreenshot(p);
+                case "annotated_screenshot": return CaptureAnnotatedScreenshot(p);
                 default:
                     return new CommandResult { success = false, error = $"Unknown scene action: {action}" };
             }
@@ -348,6 +350,118 @@ namespace UnityAITools.Editor.Tools
                 DestroyTexture(tex);
                 DestroyTexture(downscaled);
             }
+        }
+
+        private CommandResult CaptureAnnotatedScreenshot(ToolParams p)
+        {
+            var maxResolution = p.GetInt("max_resolution") ?? p.GetInt("maxResolution") ?? 1024;
+            var session = AnnotationSession.Instance;
+
+            // Capture base screenshot first (scene view or main camera)
+            Camera camera = Camera.main;
+            if (camera == null)
+            {
+                var cameras = UnityEngine.Object.FindObjectsOfType<Camera>();
+                camera = cameras.FirstOrDefault();
+            }
+
+            CommandResult baseResult = camera != null
+                ? CaptureFromCamera(camera, maxResolution)
+                : CaptureSceneView(maxResolution);
+
+            if (!baseResult.success)
+                return baseResult;
+
+            var baseData = baseResult.data as Dictionary<string, object>;
+            if (baseData == null)
+                return new CommandResult { success = false, error = "Screenshot data unavailable" };
+
+            int imgW = (int)baseData["width"];
+            int imgH = (int)baseData["height"];
+            var baseBase64 = (string)baseData["image_base64"];
+
+            // If no annotations, return plain screenshot with empty description
+            string description = session.BuildDescription();
+            if (!session.HasAnnotations)
+            {
+                baseData["annotations_description"] = "No annotations.";
+                return baseResult;
+            }
+
+            // Bake annotations onto the screenshot
+            Texture2D baseTex = null;
+            Texture2D annotationTex = null;
+            Texture2D compositeTex = null;
+
+            try
+            {
+                // Decode base screenshot
+                baseTex = new Texture2D(imgW, imgH, TextureFormat.RGBA32, false);
+                baseTex.LoadImage(Convert.FromBase64String(baseBase64));
+
+                // Scale annotation session coordinates to match the (possibly downscaled) image
+                float scaleX = (float)imgW / session.ViewWidth;
+                float scaleY = (float)imgH / session.ViewHeight;
+
+                // Bake annotation overlay at the captured image resolution
+                var savedW = session.ViewWidth;
+                var savedH = session.ViewHeight;
+                session.SetViewSize(imgW, imgH);
+
+                // Temporarily scale all stroke points to image space
+                ScaleStrokes(session, scaleX, scaleY);
+                annotationTex = session.BakeToTexture();
+                // Restore to view space
+                ScaleStrokes(session, 1f / scaleX, 1f / scaleY);
+                session.SetViewSize(savedW, savedH);
+
+                // Alpha-composite annotation layer on top of base screenshot
+                compositeTex = new Texture2D(imgW, imgH, TextureFormat.RGBA32, false);
+                var basePixels = baseTex.GetPixels32();
+                var annotPixels = annotationTex.GetPixels32();
+                var outPixels = new Color32[basePixels.Length];
+                for (int i = 0; i < basePixels.Length; i++)
+                {
+                    var b = basePixels[i];
+                    var a = annotPixels[i];
+                    float alpha = a.a / 255f;
+                    outPixels[i] = new Color32(
+                        (byte)Mathf.RoundToInt(a.r * alpha + b.r * (1 - alpha)),
+                        (byte)Mathf.RoundToInt(a.g * alpha + b.g * (1 - alpha)),
+                        (byte)Mathf.RoundToInt(a.b * alpha + b.b * (1 - alpha)),
+                        255);
+                }
+                compositeTex.SetPixels32(outPixels);
+                compositeTex.Apply();
+
+                var compositeBase64 = Convert.ToBase64String(compositeTex.EncodeToPNG());
+
+                return new CommandResult
+                {
+                    success = true,
+                    data = new Dictionary<string, object>
+                    {
+                        { "image_base64", compositeBase64 },
+                        { "width", imgW },
+                        { "height", imgH },
+                        { "source", baseData.ContainsKey("camera") ? "camera_annotated" : "scene_view_annotated" },
+                        { "annotations_description", description },
+                    }
+                };
+            }
+            finally
+            {
+                DestroyTexture(baseTex);
+                DestroyTexture(annotationTex);
+                DestroyTexture(compositeTex);
+            }
+        }
+
+        private static void ScaleStrokes(AnnotationSession session, float sx, float sy)
+        {
+            foreach (var stroke in session.Strokes)
+                for (int i = 0; i < stroke.Points.Count; i++)
+                    stroke.Points[i] = new Vector2(stroke.Points[i].x * sx, stroke.Points[i].y * sy);
         }
 
         private static void DestroyTexture(Texture2D tex)

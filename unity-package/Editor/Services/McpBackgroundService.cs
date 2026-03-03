@@ -310,5 +310,14 @@ namespace UnityAITools.Editor.Services
             var callback = new EditorApplication.CallbackFunction(() => OnStatusChanged?.Invoke());
             EditorApplication.delayCall += callback;
         }
+
+        /// <summary>
+        /// Executes a tool command locally (bypasses WebSocket) — used for UI-initiated captures
+        /// like annotated screenshots where no round-trip to the MCP server is needed.
+        /// </summary>
+        public Task<CommandResult> ExecuteToolDirectAsync(string commandName, string paramsJson)
+        {
+            return _dispatcher.DispatchAsync(commandName, paramsJson);
+        }
     }
 }

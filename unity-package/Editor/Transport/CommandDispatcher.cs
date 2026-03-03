@@ -26,6 +26,26 @@ namespace UnityAITools.Editor.Transport
         }
 
         /// <summary>
+        /// Dispatch a command by name with a params JSON string.
+        /// </summary>
+        public async Task<CommandResult> DispatchAsync(string commandName, string paramsJson)
+        {
+            if (!_handlers.TryGetValue(commandName, out var handler))
+                return new CommandResult { success = false, error = $"Unknown command: {commandName}" };
+            try
+            {
+                var result = await handler.ExecuteAsync(commandName, paramsJson ?? "{}");
+                OnCommandExecuted?.Invoke(commandName);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[CommandDispatcher] Error: {ex}");
+                return new CommandResult { success = false, error = $"Dispatch error: {ex.Message}" };
+            }
+        }
+
+        /// <summary>
         /// Dispatch a raw JSON command and return the result.
         /// </summary>
         public async Task<CommandResult> DispatchAsync(string rawJson)
