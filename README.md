@@ -81,6 +81,7 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 | `ui-design` | Canvas setup, anchoring, layout, UGUI vs UI Toolkit |
 | `testing-debugging` | Writing tests, console analysis, debugging workflows |
 | `physics-gameplay` | Rigidbody, collisions, raycasting, movement patterns |
+| `2d-game-development` | Sprites, tilemaps, sorting, 2D camera, lighting, animation |
 
 ## Testing
 
