@@ -51,6 +51,8 @@ namespace UnityAITools.Editor.Services
 
         /// <summary>
         /// Get recent log entries filtered by type.
+        /// Prefers the Editor Console (includes compiler errors); falls back to
+        /// Application.logMessageReceived capture when Editor Console is unavailable.
         /// </summary>
         public List<Dictionary<string, object>> GetLogs(
             List<string> types = null,
@@ -58,11 +60,23 @@ namespace UnityAITools.Editor.Services
             bool includeStackTrace = false,
             string format = "summary")
         {
-            var result = new List<Dictionary<string, object>>();
+            var includeStack = includeStackTrace || format == "detailed";
 
+            // Prefer Editor Console so we include compiler errors (CS0117, etc.)
+            if (EditorConsoleReader.IsAvailable)
+            {
+                var editorLogs = EditorConsoleReader.GetLogsFromEditorConsole(types, count, includeStack);
+                if (editorLogs.Count > 0)
+                {
+                    if (editorLogs.Count > count)
+                        editorLogs = editorLogs.GetRange(0, count);
+                    return editorLogs;
+                }
+            }
+
+            var result = new List<Dictionary<string, object>>();
             lock (_logs)
             {
-                // Iterate backwards for most recent first
                 for (var i = _logs.Count - 1; i >= 0 && result.Count < count; i--)
                 {
                     var entry = _logs[i];
@@ -77,10 +91,8 @@ namespace UnityAITools.Editor.Services
 
                     dict["message"] = entry.message;
 
-                    if ((includeStackTrace || format == "detailed") && !string.IsNullOrEmpty(entry.stackTrace))
-                    {
+                    if (includeStack && !string.IsNullOrEmpty(entry.stackTrace))
                         dict["stackTrace"] = entry.stackTrace;
-                    }
 
                     result.Add(dict);
                 }

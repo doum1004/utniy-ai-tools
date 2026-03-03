@@ -104,7 +104,8 @@ namespace UnityAITools.Editor.Tools
                     { "logs", logs },
                     { "count", logs.Count },
                     { "is_compiling", EditorApplication.isCompiling },
-                    { "is_playing", EditorApplication.isPlaying }
+                    { "is_playing", EditorApplication.isPlaying },
+                    { "editor_console_available", EditorConsoleReader.IsAvailable }
                 }
             };
         }
