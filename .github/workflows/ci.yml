@@ -57,7 +57,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: unity-project/Library
-          key: unity-library-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json') }}
+          # Invalidate when package dependencies change
+          key: unity-library-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json', 'unity-project/Packages/packages-lock.json') }}
           restore-keys: |
             unity-library-${{ runner.os }}-
 
@@ -65,9 +66,6 @@ jobs:
         uses: game-ci/unity-test-runner@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         with:
           projectPath: unity-project
           unityVersion: 6000.0.23f1
@@ -75,6 +73,8 @@ jobs:
           artifactsPath: unity-test-results
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: Unity EditMode Test Results
+          # Skip Docker image digest verification to save ~30s per run
+          customImage: false
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
