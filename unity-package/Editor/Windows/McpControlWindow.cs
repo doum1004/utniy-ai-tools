@@ -98,24 +98,20 @@ namespace UnityAITools.Editor.Windows
 
             GUILayout.Space(10);
 
-            // Connect / Disconnect button
-            EditorGUI.BeginDisabledGroup(isConnecting);
-
-            if (!isConnected)
+            // Connect button
+            EditorGUI.BeginDisabledGroup(isConnecting || isConnected);
+            if (GUILayout.Button("Connect", GUILayout.Height(32)))
             {
-                if (GUILayout.Button("Connect", GUILayout.Height(32)))
-                {
-                    svc.Connect(_serverUrl);
-                }
+                svc.Connect(_serverUrl);
             }
-            else
-            {
-                if (GUILayout.Button("Disconnect", GUILayout.Height(32)))
-                {
-                    svc.Disconnect();
-                }
-            }
+            EditorGUI.EndDisabledGroup();
 
+            // Disconnect button (always enabled if connected, allowed even during connection attempts)
+            EditorGUI.BeginDisabledGroup(!isConnected && !isConnecting);
+            if (GUILayout.Button("Disconnect", GUILayout.Height(32)))
+            {
+                svc.Disconnect();
+            }
             EditorGUI.EndDisabledGroup();
 
             GUILayout.Space(10);
