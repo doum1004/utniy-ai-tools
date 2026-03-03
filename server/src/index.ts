@@ -72,7 +72,7 @@ async function main(): Promise<void> {
 
         const transports = new Map<string, SSEServerTransport>();
 
-        app.get("/mcp", async (req, res) => {
+        app.get("/mcp", async (_req, res) => {
             const transport = new SSEServerTransport("/mcp/messages", res);
             transports.set(transport.sessionId, transport);
 
@@ -94,7 +94,7 @@ async function main(): Promise<void> {
             }
         });
 
-        app.get("/health", (req, res) => {
+        app.get("/health", (_req, res) => {
             res.json({
                 status: "ok",
                 server: "unity-ai-tools",
