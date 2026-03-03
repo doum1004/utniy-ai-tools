@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using UnityAITools.Editor.Transport;
@@ -19,13 +21,15 @@ namespace UnityAITools.Editor.Services
         public static McpBackgroundService Instance { get; private set; }
 
         public WebSocketClient Client { get; private set; }
-        public bool IsConnecting { get; private set; }
+
+        private volatile bool _isConnecting;
+        public bool IsConnecting => _isConnecting;
         
         // Define an event for status changes so the UI can update
         public event Action OnStatusChanged;
 
         private CommandDispatcher _dispatcher;
-        private bool _isDisconnectingIntentional = false;
+        private volatile bool _isDisconnectingIntentional = false;
         private string _lastServerUrl = "ws://localhost:8091";
         private int _reconnectAttempt = 0;
         private static readonly int[] ReconnectScheduleMs = { 0, 1000, 3000, 5000, 10000, 30000 };
@@ -34,6 +38,11 @@ namespace UnityAITools.Editor.Services
         private double _lastBackgroundTick;
         private const double BackgroundTickIntervalSec = 1.0;
         private volatile bool _pendingRefresh;
+
+        // Background reconnect monitor — runs independently of Unity's main thread update loop.
+        // This ensures reconnection works even when Unity is unfocused or between domain reloads.
+        private CancellationTokenSource _monitorCts;
+        private const int MonitorIntervalMs = 5000;
 
         // SessionState keys — survive domain reloads but not Editor restarts
         private const string KeyWasConnected = "UnityAITools_WasConnected";
@@ -119,7 +128,7 @@ namespace UnityAITools.Editor.Services
             Client = new WebSocketClient(_dispatcher);
             
             Client.OnConnected += () => { 
-                IsConnecting = false;
+                _isConnecting = false;
                 _reconnectAttempt = 0;
                 SessionState.SetBool(KeyWasConnected, true);
                 SessionState.SetString(KeyServerUrl, _lastServerUrl);
@@ -128,14 +137,16 @@ namespace UnityAITools.Editor.Services
             };
             
             Client.OnDisconnected += () => { 
-                IsConnecting = false;
+                _isConnecting = false;
                 EditorApplication.update -= BackgroundTick;
                 NotifyStatusChanged(); 
                 
                 if (!_isDisconnectingIntentional)
                 {
                     Debug.LogWarning("[UnityAITools] Unintentional disconnect detected, will auto-reconnect");
-                    EditorApplication.delayCall += TryReconnecting;
+                    // Use background task instead of EditorApplication.delayCall so reconnection
+                    // works even when Unity is unfocused or in the middle of a domain reload.
+                    _ = Task.Run(() => TryReconnectingAsync());
                 }
                 else
                 {
@@ -144,7 +155,7 @@ namespace UnityAITools.Editor.Services
             };
             
             Client.OnError += (err) => { 
-                IsConnecting = false; 
+                _isConnecting = false; 
                 Debug.LogWarning($"[UnityAITools] WebSocket error: {err}"); 
                 NotifyStatusChanged(); 
             };
@@ -152,13 +163,17 @@ namespace UnityAITools.Editor.Services
             // Hook into Editor application quitting to clean up
             EditorApplication.quitting += OnQuitting;
 
-            // Auto-reconnect after domain reload (play mode enter/exit)
+            // Auto-reconnect after domain reload (play mode enter/exit).
+            // Use Task.Run so this fires even if Unity is currently unfocused.
             if (SessionState.GetBool(KeyWasConnected, false))
             {
                 var url = SessionState.GetString(KeyServerUrl, _lastServerUrl);
                 Debug.Log($"[UnityAITools] Domain reload detected, auto-reconnecting to {url}...");
-                Connect(url);
+                _ = Task.Run(() => TryReconnectingAsync());
             }
+
+            // Start the background connection monitor.
+            StartMonitor();
         }
 
         /// <summary>
@@ -188,36 +203,46 @@ namespace UnityAITools.Editor.Services
 
         private void OnQuitting()
         {
+            _monitorCts?.Cancel();
             EditorApplication.update -= BackgroundTick;
             Disconnect();
             ConsoleLogCapture.Instance.Unregister();
         }
 
+        /// <summary>
+        /// Initiate a connection from the UI (e.g. Connect button). Safe to call from main thread.
+        /// </summary>
         public void Connect(string serverUrl)
         {
-            if (Client.IsConnected || IsConnecting) return;
+            if (Client.IsConnected || _isConnecting) return;
             _isDisconnectingIntentional = false;
             _lastServerUrl = serverUrl;
-            IsConnecting = true;
+            _isConnecting = true;
+            _reconnectAttempt = 0;
             NotifyStatusChanged();
-            Client.ConnectAsync(serverUrl);
+            _ = Client.ConnectAsync(serverUrl);
         }
 
         public void Disconnect()
         {
             _isDisconnectingIntentional = true;
             _pendingRefresh = false;
+            _reconnectAttempt = 0;
             EditorApplication.update -= BackgroundTick;
             SessionState.SetBool(KeyWasConnected, false);
             if (Client != null && Client.IsConnected)
             {
-                Client.DisconnectAsync();
+                _ = Client.DisconnectAsync();
             }
         }
 
-        private async void TryReconnecting()
+        /// <summary>
+        /// Attempts to reconnect using exponential backoff. Runs entirely on a background
+        /// thread so it works even when Unity is unfocused or between domain reloads.
+        /// </summary>
+        private async Task TryReconnectingAsync()
         {
-            if (_isDisconnectingIntentional || Client.IsConnected || IsConnecting) return;
+            if (_isDisconnectingIntentional || Client.IsConnected || _isConnecting) return;
 
             var delayMs = ReconnectScheduleMs[Math.Min(_reconnectAttempt, ReconnectScheduleMs.Length - 1)];
             _reconnectAttempt++;
@@ -225,12 +250,55 @@ namespace UnityAITools.Editor.Services
             Debug.Log($"[UnityAITools] Connection lost. Auto-reconnect attempt #{_reconnectAttempt} in {delayMs}ms...");
 
             if (delayMs > 0)
-                await System.Threading.Tasks.Task.Delay(delayMs);
-            
-            if (!_isDisconnectingIntentional && !Client.IsConnected && !IsConnecting)
+                await Task.Delay(delayMs);
+
+            if (_isDisconnectingIntentional || Client.IsConnected || _isConnecting) return;
+
+            _isConnecting = true;
+            NotifyStatusChanged();
+            // ConnectAsync is thread-safe — ClientWebSocket.ConnectAsync works off the main thread.
+            await Client.ConnectAsync(_lastServerUrl);
+        }
+
+        /// <summary>
+        /// Starts a long-running background monitor that periodically checks the connection
+        /// and triggers reconnection if needed — independent of Unity's main thread update loop.
+        /// This is the key fix: reconnection now works when Unity is unfocused.
+        /// </summary>
+        private void StartMonitor()
+        {
+            _monitorCts?.Cancel();
+            _monitorCts = new CancellationTokenSource();
+            _ = Task.Run(() => ConnectionMonitorAsync(_monitorCts.Token));
+        }
+
+        private async Task ConnectionMonitorAsync(CancellationToken token)
+        {
+            Debug.Log("[UnityAITools] Background connection monitor started");
+            while (!token.IsCancellationRequested)
             {
-                Connect(_lastServerUrl);
+                try
+                {
+                    await Task.Delay(MonitorIntervalMs, token);
+
+                    // If we should be connected but aren't, trigger a reconnect.
+                    if (!_isDisconnectingIntentional && !Client.IsConnected && !_isConnecting
+                        && SessionState.GetBool(KeyWasConnected, false))
+                    {
+                        Debug.Log("[UnityAITools] Monitor: connection lost, triggering reconnect...");
+                        await TryReconnectingAsync();
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[UnityAITools] Monitor error: {ex.Message}");
+                }
             }
+            Debug.Log("[UnityAITools] Background connection monitor stopped");
         }
 
         private void NotifyStatusChanged()
