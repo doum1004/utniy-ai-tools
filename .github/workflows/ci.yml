@@ -45,3 +45,38 @@ jobs:
 
       - name: Type check
         run: bunx tsc --noEmit
+
+  unity-tests:
+    name: Unity Package EditMode Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: unity-project/Library
+          key: unity-library-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json') }}
+          restore-keys: |
+            unity-library-${{ runner.os }}-
+
+      - name: Run Unity EditMode Tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          projectPath: unity-project
+          unityVersion: 6000.0.23f1
+          testMode: EditMode
+          artifactsPath: unity-test-results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: Unity EditMode Test Results
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unity-test-results
+          path: unity-test-results
+          retention-days: 14

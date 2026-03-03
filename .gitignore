@@ -1,4 +1,17 @@
+# Server
 node_modules/
 dist/
 *.tgz
 .env
+
+# Unity project generated files
+unity-project/Library/
+unity-project/Temp/
+unity-project/Obj/
+unity-project/Build/
+unity-project/Builds/
+unity-project/Logs/
+unity-project/UserSettings/
+unity-project/*.sln
+unity-project/*.csproj
+unity-project/Assembly-CSharp*.csproj

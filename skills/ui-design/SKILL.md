@@ -1,3 +1,8 @@
+---
+name: ui-design
+description: Guide AI through Unity UI design — UGUI canvas setup, anchoring, layout groups, responsive design, UI Toolkit basics, and common UI patterns. Use when building HUD, menus, or interactive UI elements.
+---
+
 # UI/UX Design Skill
 
 Guide for building Unity UI — canvas setup, layout, responsive design, and interaction patterns.

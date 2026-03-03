@@ -1,3 +1,8 @@
+---
+name: testing-debugging
+description: Guide AI through Unity test writing (EditMode/PlayMode), error analysis, debugging workflows, and console log interpretation using MCP tools. Use when writing tests, investigating bugs, or analyzing runtime errors.
+---
+
 # Testing & Debugging Skill
 
 Guide for writing Unity tests, analyzing errors, and debugging workflows using MCP tools.

@@ -1,3 +1,8 @@
+---
+name: physics-gameplay
+description: Guide AI through Unity physics setup, rigidbody configuration, collision detection, movement patterns, and common gameplay mechanics. Use when implementing physics-based movement, collision systems, or gameplay interactions.
+---
+
 # Physics & Gameplay Skill
 
 Guide for setting up physics, collisions, movement, and common gameplay mechanics in Unity.
