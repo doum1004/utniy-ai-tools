@@ -13,7 +13,7 @@ Unity's component system is built for composition. Prefer small, focused compone
 
 ```
 BAD:  Entity → Character → Player → PlayerWithInventory
-GOOD: Player GameObject with: Movement, Health, Inventory, InputHandler components
+GOOD: Player GameObject with: Movement, Health, Inventory, PlayerInput components
 ```
 
 ## Script Architecture Patterns
@@ -180,6 +180,8 @@ When reviewing or writing scripts, verify:
 - [ ] Null checks on serialized references (use `inspect_gameobject` to verify)
 - [ ] No magic numbers — use `const`, `[SerializeField]`, or ScriptableObject config
 - [ ] Proper namespace usage matching folder structure
+- [ ] Uses `UnityEngine.InputSystem` (Keyboard.current, Mouse.current) — **never** legacy `UnityEngine.Input`
+- [ ] UI uses UI Toolkit (UIDocument + UXML + USS) — not UGUI for new screen-space UI
 
 ## Script Verification Workflow
 
@@ -204,3 +206,5 @@ After creating or editing scripts:
 | String coupling | Fragile, no compile-time checks | Use direct references, enums, SO events |
 | Deep inheritance | Rigid, hard to modify | Use composition with interfaces |
 | Static everything | Hard to test, tight coupling | Use dependency injection or SO |
+| Legacy `Input.GetAxis()` | Compile error with new InputSystem | Use `Keyboard.current`, `Mouse.current`, or Input Actions |
+| UGUI for new screen-space UI | Heavier, less flexible than UI Toolkit | Use UIDocument + UXML + USS for new UI |

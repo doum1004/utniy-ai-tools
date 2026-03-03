@@ -36,7 +36,7 @@ Set up the world before any gameplay code.
 Get one thing playable before adding complexity.
 
 ```
-1. Player controller script (check Input System — old vs new)
+1. Player controller script using InputSystem (Keyboard.current, Mouse.current, or Input Actions)
 2. Create prefabs in Assets/Resources/ for runtime spawning
 3. Basic entity scripts (movement, collision)
 4. Wire prefabs via Resources.Load (MCP can't assign serialized fields)
@@ -56,18 +56,20 @@ Add structure around the core mechanic.
 5. Play test → verify full loop works
 ```
 
-### Phase 4: UI
+### Phase 4: UI (UI Toolkit)
 
-Add HUD and overlays after gameplay works.
+Add HUD and overlays after gameplay works. **Always use UI Toolkit** for new game UI.
 
 ```
-1. Create UXML layout (Assets/Resources/GameHUD.uxml)
-2. Create USS stylesheet (Assets/Resources/GameHUD.uss)
-3. Create PanelSettings via Editor script (NOT runtime ScriptableObject.CreateInstance)
-4. Create UI controller script to bind elements
-5. Wire UIDocument in scene via Editor script or MCP
+1. Create UXML layout (Assets/UI/GameHUD.uxml) with <Style> referencing USS
+2. Create USS stylesheet (Assets/UI/GameHUD.uss) — use flexbox layout
+3. Create PanelSettings via Editor script using AssetDatabase.CreateAsset() (NOT ScriptableObject.CreateInstance)
+4. Create UI controller script — use root.Q<Label>("name") to query and bind elements
+5. Wire UIDocument in scene via Editor script (assign PanelSettings + UXML source asset)
 6. Play test → verify UI updates with game state
 ```
+
+See **ui-design** skill for full UXML/USS/controller examples and patterns.
 
 ### Phase 5: Visual Polish
 
@@ -137,22 +139,68 @@ Prefab creation workflow:
 UI Toolkit needs special handling because PanelSettings created at runtime are broken (missing internal shader references).
 
 ```
-1. Create Editor script that creates PanelSettings via AssetDatabase.CreateAsset()
-2. Same script wires UIDocument component with PanelSettings + UXML reference
-3. refresh_unity → compile → execute_menu_item
-4. UXML should embed USS via: <Style src="MyStyles.uss" />
-5. UI controller script uses root.Q<Label>("element-name") to bind elements
+1. Create UXML layout file — embed USS via <Style src="MyStyles.uss" />
+2. Create USS stylesheet — use flexbox layout (flex-direction, justify-content, align-items)
+3. Create Editor script that creates PanelSettings via AssetDatabase.CreateAsset()
+   - Set scaleMode = PanelScaleMode.ScaleWithScreenSize
+   - Set referenceResolution = new Vector2Int(1920, 1080)
+4. Same script wires UIDocument component with PanelSettings + VisualTreeAsset reference
+5. refresh_unity → compile → execute_menu_item to run setup
+6. Create UI controller script:
+   - GetComponent<UIDocument>().rootVisualElement to get root
+   - root.Q<Label>("element-name") to query elements
+   - RegisterCallback<ClickEvent> for button interactions
 ```
 
-## Input System Considerations
+See **ui-design** skill for full code examples and common UI patterns (modal, scroll view, health bar).
 
-Check which input system the project uses before writing controller scripts:
+## Input System
 
-- **New Input System** (com.unity.inputsystem): Use `Mouse.current`, `Keyboard.current`, `Pointer.current`
-- **Old Input Manager**: Use `Input.GetAxis()`, `Input.GetMouseButton()`
-- **Both**: Project Settings → Player → Active Input Handling
+**Always use the new Input System** (`com.unity.inputsystem`) unless the project explicitly uses the legacy Input Manager. Check Project Settings > Player > Active Input Handling.
 
-If using the New Input System, `UnityEngine.Input` is **disabled** and will cause compile errors.
+### Quick Polling (Prototyping)
+
+```csharp
+using UnityEngine.InputSystem;
+
+var kb = Keyboard.current;
+var mouse = Mouse.current;
+var gamepad = Gamepad.current;
+
+bool jump = kb?.spaceKey.wasPressedThisFrame ?? false;
+bool fire = mouse?.leftButton.wasPressedThisFrame ?? false;
+Vector2 move = gamepad?.leftStick.ReadValue() ?? Vector2.zero;
+Vector2 mousePos = mouse?.position.ReadValue() ?? Vector2.zero;
+```
+
+### Input Actions (Production)
+
+For production code, use an Input Action Asset for device-agnostic input:
+
+```csharp
+using UnityEngine.InputSystem;
+
+private PlayerControls _controls;
+
+void Awake()
+{
+    _controls = new PlayerControls();
+    _controls.Gameplay.Move.performed += ctx => _moveInput = ctx.ReadValue<Vector2>();
+    _controls.Gameplay.Move.canceled += _ => _moveInput = Vector2.zero;
+    _controls.Gameplay.Jump.performed += _ => _jumpPressed = true;
+}
+
+void OnEnable() => _controls.Enable();
+void OnDisable() => _controls.Disable();
+```
+
+### Critical Notes
+
+- If using the New Input System, `UnityEngine.Input` (legacy) is **disabled** and will cause compile errors
+- **Never use** `Input.GetAxis()`, `Input.GetMouseButton()`, `Input.mousePosition` with the new Input System
+- For UI: UI Toolkit works automatically; UGUI needs `InputSystemUIInputModule` on the EventSystem
+
+See **physics-gameplay** skill for full movement pattern examples with InputSystem.
 
 ## Known Pitfalls & Workarounds
 

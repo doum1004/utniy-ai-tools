@@ -1,6 +1,6 @@
 ---
 name: physics-gameplay
-description: Guide AI through Unity physics setup, rigidbody configuration, collision detection, movement patterns, and common gameplay mechanics. Use when implementing physics-based movement, collision systems, or gameplay interactions.
+description: Guide AI through Unity physics setup, rigidbody configuration, collision detection, InputSystem-based movement patterns, and common gameplay mechanics. Use when implementing physics-based movement, collision systems, or gameplay interactions.
 ---
 
 # Physics & Gameplay Skill
@@ -68,19 +68,137 @@ Disable unnecessary collisions:
 
 Set layers via: `manage_gameobject(action="modify", target="...", layer="Player")`
 
+## Input System (New)
+
+**Always use the new Input System** (`com.unity.inputsystem`) unless the project explicitly uses the legacy Input Manager. Check Project Settings > Player > Active Input Handling.
+
+### Reading Input
+
+```csharp
+using UnityEngine.InputSystem;
+
+// Polling (in Update/FixedUpdate)
+var keyboard = Keyboard.current;
+var mouse = Mouse.current;
+var gamepad = Gamepad.current;
+
+// Keyboard
+bool jump = keyboard?.spaceKey.wasPressedThisFrame ?? false;
+float horizontal = keyboard != null ? (keyboard.dKey.isPressed ? 1 : keyboard.aKey.isPressed ? -1 : 0) : 0;
+
+// Mouse
+Vector2 mousePos = mouse?.position.ReadValue() ?? Vector2.zero;
+bool fire = mouse?.leftButton.wasPressedThisFrame ?? false;
+float scroll = mouse?.scroll.ReadValue().y ?? 0;
+
+// Gamepad
+Vector2 leftStick = gamepad?.leftStick.ReadValue() ?? Vector2.zero;
+bool gamepadJump = gamepad?.buttonSouth.wasPressedThisFrame ?? false;
+```
+
+### Input Actions (Preferred for Production)
+
+Input Actions decouple logic from specific devices. Create an Input Action Asset or define in code:
+
+```csharp
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class PlayerInput : MonoBehaviour
+{
+    private PlayerControls _controls; // Generated from Input Action Asset
+
+    private Vector2 _moveInput;
+    private bool _jumpPressed;
+
+    void Awake()
+    {
+        _controls = new PlayerControls();
+        _controls.Gameplay.Move.performed += ctx => _moveInput = ctx.ReadValue<Vector2>();
+        _controls.Gameplay.Move.canceled += _ => _moveInput = Vector2.zero;
+        _controls.Gameplay.Jump.performed += _ => _jumpPressed = true;
+    }
+
+    void OnEnable() => _controls.Enable();
+    void OnDisable() => _controls.Disable();
+
+    void Update()
+    {
+        // Use _moveInput and _jumpPressed
+        if (_jumpPressed) { /* jump logic */ _jumpPressed = false; }
+    }
+}
+```
+
+### Quick Inline Input (Prototyping)
+
+For rapid prototypes without an Input Action Asset:
+
+```csharp
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class SimplePlayerController : MonoBehaviour
+{
+    [SerializeField] private float speed = 5f;
+
+    void Update()
+    {
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        float x = 0, z = 0;
+        if (kb.wKey.isPressed) z = 1;
+        if (kb.sKey.isPressed) z = -1;
+        if (kb.aKey.isPressed) x = -1;
+        if (kb.dKey.isPressed) x = 1;
+
+        var move = new Vector3(x, 0, z).normalized * speed * Time.deltaTime;
+        transform.Translate(move, Space.World);
+    }
+}
+```
+
 ## Movement Patterns
 
 ### Rigidbody-Based Movement (Recommended for physics games)
 
 ```csharp
-// In FixedUpdate — consistent physics timing
-void FixedUpdate()
-{
-    // Movement via velocity (direct control)
-    rb.velocity = new Vector3(inputX * speed, rb.velocity.y, inputZ * speed);
+using UnityEngine;
+using UnityEngine.InputSystem;
 
-    // OR via forces (more physical feel)
-    rb.AddForce(moveDir * acceleration, ForceMode.Acceleration);
+public class RigidbodyMovement : MonoBehaviour
+{
+    [SerializeField] private float speed = 8f;
+    [SerializeField] private float jumpForce = 10f;
+
+    private Rigidbody _rb;
+
+    void Awake() => _rb = GetComponent<Rigidbody>();
+
+    void FixedUpdate()
+    {
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        float x = 0, z = 0;
+        if (kb.wKey.isPressed) z = 1;
+        if (kb.sKey.isPressed) z = -1;
+        if (kb.aKey.isPressed) x = -1;
+        if (kb.dKey.isPressed) x = 1;
+
+        // Velocity-based (direct control)
+        _rb.velocity = new Vector3(x * speed, _rb.velocity.y, z * speed);
+
+        // OR force-based (more physical feel)
+        // _rb.AddForce(new Vector3(x, 0, z) * acceleration, ForceMode.Acceleration);
+    }
+
+    void Update()
+    {
+        if (Keyboard.current?.spaceKey.wasPressedThisFrame == true)
+            _rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+    }
 }
 ```
 
@@ -89,18 +207,44 @@ void FixedUpdate()
 ### CharacterController-Based Movement (Recommended for action games)
 
 ```csharp
-// In Update — frame-based
-void Update()
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class CharacterControllerMovement : MonoBehaviour
 {
-    Vector3 move = transform.right * inputX + transform.forward * inputZ;
-    move *= speed;
+    [SerializeField] private float speed = 6f;
+    [SerializeField] private float gravity = -20f;
+    [SerializeField] private float jumpHeight = 2f;
 
-    // Apply gravity manually
-    velocity.y += gravity * Time.deltaTime;
-    move.y = velocity.y;
+    private CharacterController _controller;
+    private Vector3 _velocity;
 
-    controller.Move(move * Time.deltaTime);
-    isGrounded = controller.isGrounded;
+    void Awake() => _controller = GetComponent<CharacterController>();
+
+    void Update()
+    {
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        float x = 0, z = 0;
+        if (kb.wKey.isPressed) z = 1;
+        if (kb.sKey.isPressed) z = -1;
+        if (kb.aKey.isPressed) x = -1;
+        if (kb.dKey.isPressed) x = 1;
+
+        Vector3 move = (transform.right * x + transform.forward * z) * speed;
+
+        if (_controller.isGrounded && _velocity.y < 0)
+            _velocity.y = -2f;
+
+        if (_controller.isGrounded && kb.spaceKey.wasPressedThisFrame)
+            _velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+
+        _velocity.y += gravity * Time.deltaTime;
+        move.y = _velocity.y;
+
+        _controller.Move(move * Time.deltaTime);
+    }
 }
 ```
 
@@ -109,10 +253,24 @@ void Update()
 ### Transform-Based Movement (Simple/2D)
 
 ```csharp
-// In Update
-void Update()
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class SimpleMovement : MonoBehaviour
 {
-    transform.Translate(Vector3.right * inputX * speed * Time.deltaTime);
+    [SerializeField] private float speed = 5f;
+
+    void Update()
+    {
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        float x = 0;
+        if (kb.dKey.isPressed) x = 1;
+        if (kb.aKey.isPressed) x = -1;
+
+        transform.Translate(Vector3.right * x * speed * Time.deltaTime);
+    }
 }
 ```
 
@@ -131,6 +289,8 @@ void Update()
 ### Common Patterns
 
 ```csharp
+using UnityEngine.InputSystem;
+
 // Ground check
 bool isGrounded = Physics.Raycast(transform.position, Vector3.down, groundDistance, groundLayer);
 
@@ -140,11 +300,15 @@ if (Physics.Raycast(camera.position, camera.forward, out RaycastHit hit, maxRang
     // hit.point, hit.normal, hit.collider.gameObject
 }
 
-// Mouse picking
-Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-if (Physics.Raycast(ray, out RaycastHit hit, 100f, interactableLayer))
+// Mouse picking (new Input System)
+var mouse = Mouse.current;
+if (mouse != null)
 {
-    hit.collider.GetComponent<IInteractable>()?.Interact();
+    Ray ray = Camera.main.ScreenPointToRay(mouse.position.ReadValue());
+    if (Physics.Raycast(ray, out RaycastHit hit, 100f, interactableLayer))
+    {
+        hit.collider.GetComponent<IInteractable>()?.Interact();
+    }
 }
 ```
 
@@ -180,7 +344,10 @@ if (Physics.Raycast(ray, out RaycastHit hit, 100f, interactableLayer))
 ### Jump
 
 ```csharp
+using UnityEngine.InputSystem;
+
 // Rigidbody jump
+bool jumpInput = Keyboard.current?.spaceKey.wasPressedThisFrame ?? false;
 if (isGrounded && jumpInput)
     rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
 

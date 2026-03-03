@@ -20,7 +20,7 @@ MCP tools are great for creating and modifying individual objects, but **unrelia
 | `manage_components` set_property (enum) | Fails on enum types like shadow mode | Use Editor script with direct component API |
 | Tags (`FindGameObjectsWithTag`) | Custom tags can't be created/assigned reliably via MCP | Use component-based lookups: `FindObjectsByType<T>()` |
 | Serialized field assignment | MCP can't assign prefab references to script fields | Use `Resources.Load<GameObject>()` from `Assets/Resources/` |
-| PanelSettings (UI Toolkit) | `ScriptableObject.CreateInstance<PanelSettings>()` at runtime is missing shader refs | Create via `AssetDatabase.CreateAsset()` in an Editor script |
+| PanelSettings (UI Toolkit) | `ScriptableObject.CreateInstance<PanelSettings>()` at runtime is missing shader refs | Create via `AssetDatabase.CreateAsset()` in Editor script — set scaleMode, referenceResolution, match |
 | Prefab child objects | Children added after initial prefab save may get lost | Unpack, modify, then re-create the prefab |
 
 ## Hierarchy Organization Convention
@@ -137,6 +137,7 @@ Use an Editor script (instead of MCP tools directly) when:
 - Reparenting more than 2-3 objects
 - Setting component properties that fail via `set_property` (Color, enum, struct)
 - Creating assets that need internal Unity references (PanelSettings, RenderPipelineAsset)
+- Wiring UIDocument with PanelSettings + VisualTreeAsset references
 - Configuring RenderSettings (skybox, ambient, fog) — no MCP tool for this
 - Bulk operations that need atomicity (all-or-nothing)
 
