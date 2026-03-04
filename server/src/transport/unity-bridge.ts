@@ -155,9 +155,10 @@ export class UnityBridge {
         params: Record<string, unknown>,
         targetInstance?: string,
     ): Promise<McpResponse> {
+        const isFastFail = FAST_FAIL_COMMANDS.has(commandType);
         let sessionId: string;
         try {
-            sessionId = await this.resolveSessionId(targetInstance);
+            sessionId = await this.resolveSessionId(targetInstance, isFastFail);
         } catch (err) {
             return createMcpResponse(false, undefined, (err as Error).message, "retry");
         }
@@ -168,7 +169,6 @@ export class UnityBridge {
         }
 
         const commandId = randomUUID();
-        const isFastFail = FAST_FAIL_COMMANDS.has(commandType);
         const timeoutMs = (isFastFail ? FAST_FAIL_TIMEOUT : COMMAND_TIMEOUT) * 1000;
 
         // Check for caller-specified timeout
@@ -321,7 +321,7 @@ export class UnityBridge {
      * Supports targetInstance as "Name@hash" or just "hash".
      * If no target specified and only one session exists, auto-selects it.
      */
-    private async resolveSessionId(targetInstance?: string): Promise<string> {
+    private async resolveSessionId(targetInstance?: string, fastFail = false): Promise<string> {
         if (targetInstance) {
             let targetHash: string;
             if (targetInstance.includes("@")) {
@@ -332,6 +332,10 @@ export class UnityBridge {
 
             const sessionId = await this.registry.getSessionIdByHash(targetHash);
             if (sessionId) return sessionId;
+
+            if (fastFail) {
+                throw new Error(`Unity instance '${targetInstance}' is not connected`);
+            }
 
             // Wait briefly for reconnection (domain reload)
             const deadline = Date.now() + 10_000;
@@ -347,6 +351,10 @@ export class UnityBridge {
         // No target — auto-resolve
         const sessions = await this.registry.listSessions();
         if (sessions.size === 0) {
+            if (fastFail) {
+                throw new Error("No Unity plugins are currently connected");
+            }
+
             // Wait for any session to appear
             const deadline = Date.now() + 15_000;
             while (Date.now() < deadline) {
