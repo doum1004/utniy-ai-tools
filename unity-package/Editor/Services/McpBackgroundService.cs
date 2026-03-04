@@ -48,10 +48,22 @@ namespace UnityAITools.Editor.Services
         // SessionState keys — survive domain reloads but not Editor restarts
         private const string KeyWasConnected = "UnityAITools_WasConnected";
         private const string KeyServerUrl = "UnityAITools_ServerUrl";
+        private const string KeyRunInBackgroundOverridden = "UnityAITools_RunInBackgroundOverridden";
+        private const string KeyPrevRunInBackground = "UnityAITools_PrevRunInBackground";
 
         static McpBackgroundService()
         {
-            // Called on Unity Editor load and domain reloads
+            // Initialize immediately on domain reload so reconnect does not depend on focus/update ticks.
+            // Guard static constructor from hard-failing if Unity is in a transient reload state.
+            try
+            {
+                Initialize();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[UnityAITools] Immediate MCP service init deferred: {ex.Message}");
+            }
+            // Keep a delayed fallback in case Unity isn't fully ready during static init.
             EditorApplication.delayCall += Initialize;
         }
 
@@ -148,6 +160,7 @@ namespace UnityAITools.Editor.Services
                     SessionState.SetString(KeyServerUrl, _lastServerUrl);
                     EditorApplication.update += BackgroundTick;
                     EnsureAutoRefreshEnabled();
+                    EnsureRunInBackgroundEnabled();
                 };
                 NotifyStatusChanged();
             };
@@ -266,6 +279,7 @@ namespace UnityAITools.Editor.Services
             EditorApplication.update -= BackgroundTick;
             SessionState.SetBool(KeyWasConnected, false);
             RestoreAutoRefreshSetting();
+            RestoreRunInBackgroundSetting();
             if (Client != null && Client.IsConnected)
             {
                 _ = Client.DisconnectAsync();
@@ -359,6 +373,16 @@ namespace UnityAITools.Editor.Services
             Debug.Log($"[UnityAITools] Auto Refresh restored to mode {saved}");
         }
 
+        private static void RestoreRunInBackgroundSetting()
+        {
+            if (!SessionState.GetBool(KeyRunInBackgroundOverridden, false)) return;
+
+            var saved = SessionState.GetBool(KeyPrevRunInBackground, false);
+            PlayerSettings.runInBackground = saved;
+            SessionState.SetBool(KeyRunInBackgroundOverridden, false);
+            Debug.Log($"[UnityAITools] Run In Background restored to {saved}");
+        }
+
         /// <summary>
         /// Ensures Auto Refresh is set to "Enabled" (mode 1) so Unity recompiles
         /// scripts immediately — even when the editor window doesn't have OS focus.
@@ -382,6 +406,25 @@ namespace UnityAITools.Editor.Services
 
             EditorPrefs.SetInt(key, 1);
             Debug.Log($"[UnityAITools] Auto Refresh changed from mode {current} to 1 (always enabled) for MCP compatibility");
+        }
+
+        /// <summary>
+        /// Ensures play mode continues running even when Unity loses focus.
+        /// This prevents background automation sessions from effectively stalling.
+        /// The previous value is saved and restored on disconnect.
+        /// </summary>
+        private static void EnsureRunInBackgroundEnabled()
+        {
+            if (PlayerSettings.runInBackground) return;
+
+            if (!SessionState.GetBool(KeyRunInBackgroundOverridden, false))
+            {
+                SessionState.SetBool(KeyPrevRunInBackground, PlayerSettings.runInBackground);
+                SessionState.SetBool(KeyRunInBackgroundOverridden, true);
+            }
+
+            PlayerSettings.runInBackground = true;
+            Debug.Log("[UnityAITools] Enabled PlayerSettings.runInBackground for MCP compatibility");
         }
 
         /// <summary>

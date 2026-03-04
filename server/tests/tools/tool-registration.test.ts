@@ -12,6 +12,7 @@ import { registerBatchTools } from "../../src/tools/batch";
 import { registerAnalysisTools } from "../../src/tools/analysis";
 import { registerPlayTestTools } from "../../src/tools/playtest";
 import { registerDevLogTools } from "../../src/tools/devlog";
+import { registerFeedbackTools } from "../../src/tools/feedback";
 
 function createTrackingServer() {
     const registeredTools: string[] = [];
@@ -122,6 +123,13 @@ describe("Tool Registration", () => {
         const { server, registeredTools } = createTrackingServer();
         registerDevLogTools(server, mockBridge);
         expect(registeredTools).toContain("manage_devlog");
+        expect(registeredTools).toHaveLength(1);
+    });
+
+    test("registerFeedbackTools registers manage_feedback", () => {
+        const { server, registeredTools } = createTrackingServer();
+        registerFeedbackTools(server, mockBridge);
+        expect(registeredTools).toContain("manage_feedback");
         expect(registeredTools).toHaveLength(1);
     });
 });

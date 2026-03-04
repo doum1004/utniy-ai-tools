@@ -19,11 +19,11 @@ const mockBridge = {
 } as any;
 
 describe("Resource Registration", () => {
-    test("registers all 8 resources", () => {
+    test("registers all 9 resources", () => {
         const { server, registeredResources } = createTrackingServer();
         registerResources(server, mockBridge);
 
-        expect(registeredResources).toHaveLength(8);
+        expect(registeredResources).toHaveLength(9);
         expect(registeredResources).toContain("editor_state");
         expect(registeredResources).toContain("project_info");
         expect(registeredResources).toContain("unity_instances");
@@ -31,6 +31,7 @@ describe("Resource Registration", () => {
         expect(registeredResources).toContain("project_tags");
         expect(registeredResources).toContain("project_layers");
         expect(registeredResources).toContain("devlog");
+        expect(registeredResources).toContain("project_feedback");
         expect(registeredResources).toContain("menu_items");
     });
 });

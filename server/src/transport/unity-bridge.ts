@@ -229,15 +229,16 @@ export class UnityBridge {
     }
 
     /** Get all connected sessions */
-    async getSessions(): Promise<Map<string, { project: string; hash: string; unityVersion: string; connectedAt: string }>> {
+    async getSessions(): Promise<Map<string, { project: string; hash: string; unityVersion: string; connectedAt: string; projectPath: string }>> {
         const sessions = await this.registry.listSessions();
-        const result = new Map<string, { project: string; hash: string; unityVersion: string; connectedAt: string }>();
+        const result = new Map<string, { project: string; hash: string; unityVersion: string; connectedAt: string; projectPath: string }>();
         for (const [id, session] of sessions) {
             result.set(id, {
                 project: session.projectName,
                 hash: session.projectHash,
                 unityVersion: session.unityVersion,
                 connectedAt: session.connectedAt.toISOString(),
+                projectPath: session.projectPath,
             });
         }
         return result;

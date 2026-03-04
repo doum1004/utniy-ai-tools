@@ -1,11 +1,18 @@
 ---
 name: unity-ui-design
-description: Guide AI through Unity UI design — UI Toolkit (preferred), UGUI canvas, InputSystem integration, responsive design, and common UI patterns. Use when building HUD, menus, or interactive UI elements.
+description: Guide AI through Unity UI design with a UI Toolkit-first policy for HUD/menu/screen-space UI. Use UGUI Canvas only for world-space UI or explicit legacy maintenance.
 ---
 
 # UI/UX Design Skill
 
-Guide for building Unity UI — UI Toolkit (preferred), UGUI canvas, responsive design, and interaction patterns.
+Guide for building Unity UI with a strict default: use UI Toolkit for all new screen-space UI. Use UGUI only for world-space UI or explicit legacy constraints.
+
+## Default Policy (Required)
+
+- For new HUD, menus, overlays, settings, and screen-space UI: **always use UI Toolkit** (`UIDocument` + `UXML` + `USS`).
+- Do **not** create a `Canvas` unless the user explicitly asks for world-space UI, VR/AR interaction, or legacy UGUI maintenance.
+- If requirements are ambiguous, choose UI Toolkit and state that default briefly.
+- If a Canvas already exists in a legacy project, prefer extending it only when migration risk is high or the user requests compatibility.
 
 ## UI Toolkit vs UGUI
 
@@ -333,9 +340,9 @@ button.focusable = true;
 button.RegisterCallback<NavigationSubmitEvent>(evt => StartGame());
 ```
 
-## UGUI (Legacy / World-Space)
+## UGUI (Explicit Exception Only)
 
-Use UGUI when you need world-space UI (VR/AR, in-game panels) or are maintaining legacy projects.
+Use UGUI only when you need world-space UI (VR/AR, in-game panels) or are maintaining an explicitly legacy Canvas-based project.
 
 ### Canvas Setup
 
@@ -450,9 +457,9 @@ root.style.paddingBottom = safeArea.y;
 ## Workflow Summary
 
 ```
-1. Choose UI system: UI Toolkit (preferred) or UGUI (world-space / legacy)
+1. Default to UI Toolkit for all new screen-space UI
 2. For UI Toolkit: Create UXML + USS → PanelSettings asset → UIDocument → Controller script
-3. For UGUI: Create Canvas (pick render mode) → Canvas Scaler → Layout → Wire interactions
+3. Use UGUI only as an explicit exception: Canvas (render mode) → Canvas Scaler → Layout → interactions
 4. Test at target resolutions via Game view aspect ratio dropdown
 5. Integrate with InputSystem (UI Toolkit: automatic, UGUI: InputSystemUIInputModule)
 6. Run analyze_scene to check for issues

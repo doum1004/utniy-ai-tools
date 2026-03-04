@@ -56,7 +56,7 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 
 ## Available Tools
 
-`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings` · `manage_devlog`
+`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings` · `manage_devlog` · `manage_feedback`
 
 ## Resources
 
@@ -70,6 +70,7 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 | `unity://project/layers` | Available project layers |
 | `unity://editor/menu-items` | Available Editor menu items |
 | `unity://project/devlog` | Development journal — plans, decisions, iteration history |
+| `unity://project/feedback` | User-owned feedback drafts/exports for tool and skill improvements (manual sharing only) |
 
 ## AI Skills
 
@@ -79,7 +80,7 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 | `unity-level-design` | Scene composition, lighting, camera setup, feedback loops |
 | `unity-game-architecture` | Script patterns, prefab strategy, ScriptableObjects |
 | `unity-optimization` | Performance review, batching, pooling, profiling workflows |
-| `unity-ui-design` | Canvas setup, anchoring, layout, UGUI vs UI Toolkit |
+| `unity-ui-design` | UI Toolkit-first UI design, responsive layout, UGUI exceptions |
 | `unity-testing-debugging` | Writing tests, console analysis, debugging workflows |
 | `unity-physics-gameplay` | Rigidbody, collisions, raycasting, movement patterns |
 | `unity-2d-game-development` | Sprites, tilemaps, sorting, 2D camera, lighting, animation |

@@ -9,76 +9,16 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { UnityBridge } from "../transport/unity-bridge";
-import { resolve } from "path";
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
+import { DevLogEntry, DevLogFile, loadDevLog, resolveStorageTarget, saveDevLog } from "../devlog-storage";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface DevLogEntry {
-    id: string;
-    type: "plan" | "milestone" | "decision" | "issue" | "iteration" | "note";
-    title: string;
-    body: string;
-    status: "active" | "completed" | "dropped" | "blocked";
-    tags: string[];
-    parent_id?: string;
-    created_at: string;
-    updated_at: string;
-}
-
-interface DevLogFile {
-    project: string;
-    entries: DevLogEntry[];
-}
-
-// ---------------------------------------------------------------------------
-// Storage helpers
-// ---------------------------------------------------------------------------
-
-const DATA_DIR = resolve(
-    process.env.DEVLOG_DIR ?? resolve(import.meta.dir, "../../data/devlogs"),
-);
-
-function sanitizeProjectKey(name: string): string {
-    return name.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
-}
-
-function logPath(projectKey: string): string {
-    return resolve(DATA_DIR, `${projectKey}.json`);
-}
-
-function loadLog(projectKey: string, projectName: string): DevLogFile {
-    const path = logPath(projectKey);
-    if (existsSync(path)) {
-        try {
-            return JSON.parse(readFileSync(path, "utf-8"));
-        } catch {
-            return { project: projectName, entries: [] };
-        }
-    }
-    return { project: projectName, entries: [] };
-}
-
-function saveLog(projectKey: string, log: DevLogFile): void {
-    mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(logPath(projectKey), JSON.stringify(log, null, 2), "utf-8");
-}
-
 function generateId(): string {
     const ts = Date.now().toString(36);
     const rand = Math.random().toString(36).slice(2, 6);
     return `${ts}-${rand}`;
-}
-
-async function resolveProjectKey(bridge: UnityBridge): Promise<{ key: string; name: string }> {
-    const sessions = await bridge.getSessions();
-    if (sessions.size === 0) {
-        return { key: "_unlinked", name: "unlinked" };
-    }
-    const first = sessions.values().next().value!;
-    return { key: sanitizeProjectKey(first.project), name: first.project };
 }
 
 // ---------------------------------------------------------------------------
@@ -118,8 +58,8 @@ export function registerDevLogTools(server: McpServer, bridge: UnityBridge): voi
             limit: z.number().optional().describe("Max entries to return (default: 50, most recent first)"),
         },
         async (params) => {
-            const { key, name } = await resolveProjectKey(bridge);
-            const log = loadLog(key, name);
+            const target = await resolveStorageTarget(bridge);
+            const log = loadDevLog(target);
 
             switch (params.action) {
                 case "add": {
@@ -141,7 +81,7 @@ export function registerDevLogTools(server: McpServer, bridge: UnityBridge): voi
                         updated_at: now,
                     };
                     log.entries.push(entry);
-                    saveLog(key, log);
+                    saveDevLog(target, log);
                     return {
                         content: [{ type: "text", text: JSON.stringify({ success: true, entry }, null, 2) }],
                     };
@@ -165,7 +105,7 @@ export function registerDevLogTools(server: McpServer, bridge: UnityBridge): voi
                     if (params.tags) entry.tags = params.tags;
                     if (params.parent_id) entry.parent_id = params.parent_id;
                     entry.updated_at = new Date().toISOString();
-                    saveLog(key, log);
+                    saveDevLog(target, log);
                     return {
                         content: [{ type: "text", text: JSON.stringify({ success: true, entry }, null, 2) }],
                     };

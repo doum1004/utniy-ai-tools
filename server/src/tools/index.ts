@@ -14,3 +14,4 @@ export { registerBatchTools } from "./batch";
 export { registerAnalysisTools } from "./analysis";
 export { registerPlayTestTools } from "./playtest";
 export { registerDevLogTools } from "./devlog";
+export { registerFeedbackTools } from "./feedback";

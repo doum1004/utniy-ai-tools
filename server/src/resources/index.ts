@@ -4,8 +4,8 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { UnityBridge } from "../transport/unity-bridge";
-import { resolve } from "path";
-import { readFileSync, existsSync } from "fs";
+import { loadDevLog, resolveStorageTarget } from "../devlog-storage";
+import { loadFeedback, resolveFeedbackStorageTarget } from "../feedback-storage";
 
 export function registerResources(server: McpServer, bridge: UnityBridge): void {
     // Editor state — compiling, ready, blocking reasons
@@ -141,26 +141,8 @@ export function registerResources(server: McpServer, bridge: UnityBridge): void 
             mimeType: "application/json",
         },
         async () => {
-            const sessions = await bridge.getSessions();
-            let projectKey = "_unlinked";
-            let projectName = "unlinked";
-            if (sessions.size > 0) {
-                const first = sessions.values().next().value!;
-                projectKey = first.project.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
-                projectName = first.project;
-            }
-
-            const dataDir = resolve(
-                process.env.DEVLOG_DIR ?? resolve(import.meta.dir, "../../data/devlogs"),
-            );
-            const filePath = resolve(dataDir, `${projectKey}.json`);
-
-            let log = { project: projectName, entries: [] as unknown[] };
-            if (existsSync(filePath)) {
-                try {
-                    log = JSON.parse(readFileSync(filePath, "utf-8"));
-                } catch { /* return empty */ }
-            }
+            const target = await resolveStorageTarget(bridge);
+            const log = loadDevLog(target) as { project: string; entries: unknown[] };
 
             const entries = log.entries as Array<{
                 id: string; type: string; title: string; body: string;
@@ -184,6 +166,40 @@ export function registerResources(server: McpServer, bridge: UnityBridge): void 
             return {
                 contents: [{
                     uri: "unity://project/devlog",
+                    mimeType: "application/json",
+                    text: JSON.stringify(summary, null, 2),
+                }],
+            };
+        },
+    );
+
+    // Agent feedback — user-owned drafts for tool/skill improvements
+    server.resource(
+        "project_feedback",
+        "unity://project/feedback",
+        {
+            description: "User-owned feedback drafts/exports for tool and skill improvements. Kept in project DevLogs and exported only on demand (no remote submission endpoint).",
+            mimeType: "application/json",
+        },
+        async () => {
+            const target = await resolveFeedbackStorageTarget(bridge);
+            const feedback = loadFeedback(target);
+            const entries = feedback.entries;
+            const drafts = entries.filter((e) => e.status === "draft");
+            const exported = entries.filter((e) => e.status === "exported" || e.status === "submitted");
+
+            const summary = {
+                project: feedback.project,
+                total_entries: entries.length,
+                draft_entries: drafts.length,
+                exported_entries: exported.length,
+                recent_drafts: drafts.slice(-10),
+                recent_exported: exported.slice(-10),
+            };
+
+            return {
+                contents: [{
+                    uri: "unity://project/feedback",
                     mimeType: "application/json",
                     text: JSON.stringify(summary, null, 2),
                 }],

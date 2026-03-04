@@ -142,7 +142,7 @@ Scene Root
 ├── --- Cameras ---
 │   └── Main Camera
 ├── --- UI ---
-│   └── Canvas / UIDocument
+│   └── UIDocument (default) / Canvas (legacy or world-space only)
 └── --- Systems ---
     └── GameManager
 ```

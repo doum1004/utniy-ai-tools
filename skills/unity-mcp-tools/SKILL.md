@@ -31,7 +31,17 @@ read_console(types=["error"], count=10, include_stacktrace=true)
 
 Why: Unity must compile scripts before they're usable. Compilation errors block all tool execution.
 
-### 2. Use batch_execute for Multiple Operations
+### 2. UI System Default: UI Toolkit First
+
+For new UI work, use UI Toolkit by default:
+
+```
+- Create UXML + USS + UIDocument + PanelSettings asset
+- Do not create Canvas unless user explicitly requests world-space UI or legacy maintenance
+- If uncertain, choose UI Toolkit and note the default decision
+```
+
+### 3. Use batch_execute for Multiple Operations
 
 ```
 batch_execute(commands=[
@@ -42,11 +52,11 @@ batch_execute(commands=[
 
 10-100x faster than sequential calls. Max 25 commands per batch.
 
-### 3. Check editor_state Before Complex Operations
+### 4. Check editor_state Before Complex Operations
 
 Read `unity://editor/state` and check `ready_for_tools` is true before proceeding.
 
-### 4. Discover Menu Items Before Executing
+### 5. Discover Menu Items Before Executing
 
 Read `unity://editor/menu-items` to find available menu paths before calling `execute_menu_item`. This avoids guessing at menu paths that may not exist.
 

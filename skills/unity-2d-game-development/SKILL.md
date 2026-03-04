@@ -119,7 +119,7 @@ Grid (GameObject with Grid component)
 | Characters | 10 | Player, enemies, NPCs |
 | Effects | 20 | Particles, projectiles |
 | Foreground | 30 | Trees, pillars that overlap characters |
-| UI | 100 | HUD elements (use Canvas instead) |
+| UI | 100 | HUD elements (use UI Toolkit / UIDocument by default) |
 
 ### Tile Painting (guide user — visual task)
 
