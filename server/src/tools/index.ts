@@ -12,3 +12,4 @@ export { registerPrefabTools } from "./prefab";
 export { registerEditorTools } from "./editor";
 export { registerBatchTools } from "./batch";
 export { registerAnalysisTools } from "./analysis";
+export { registerPlayTestTools } from "./playtest";

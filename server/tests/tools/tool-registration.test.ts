@@ -10,6 +10,7 @@ import { registerPrefabTools } from "../../src/tools/prefab";
 import { registerEditorTools } from "../../src/tools/editor";
 import { registerBatchTools } from "../../src/tools/batch";
 import { registerAnalysisTools } from "../../src/tools/analysis";
+import { registerPlayTestTools } from "../../src/tools/playtest";
 
 function createTrackingServer() {
     const registeredTools: string[] = [];
@@ -103,6 +104,15 @@ describe("Tool Registration", () => {
         expect(registeredTools).toContain("analyze_scene");
         expect(registeredTools).toContain("inspect_gameobject");
         expect(registeredTools).toContain("get_project_settings");
+        expect(registeredTools).toHaveLength(3);
+    });
+
+    test("registerPlayTestTools registers all play-testing tools", () => {
+        const { server, registeredTools } = createTrackingServer();
+        registerPlayTestTools(server, mockBridge);
+        expect(registeredTools).toContain("simulate_input");
+        expect(registeredTools).toContain("read_runtime_state");
+        expect(registeredTools).toContain("capture_gameplay");
         expect(registeredTools).toHaveLength(3);
     });
 });

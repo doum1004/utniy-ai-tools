@@ -114,6 +114,11 @@ namespace UnityAITools.Editor.Services
             var batchHandler = new BatchHandler(_dispatcher);
             _dispatcher.RegisterHandler("batch_execute", batchHandler);
 
+            var playTestHandler = new PlayTestHandler();
+            _dispatcher.RegisterHandler("simulate_input", playTestHandler);
+            _dispatcher.RegisterHandler("read_runtime_state", playTestHandler);
+            _dispatcher.RegisterHandler("capture_gameplay", playTestHandler);
+
             // Commands that modify assets/scripts and need a refresh
             var refreshCommands = new HashSet<string> {
                 "create_script", "manage_script", "delete_script", "script_apply_edits",

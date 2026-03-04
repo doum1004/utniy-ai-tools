@@ -15,6 +15,7 @@ import {
     registerEditorTools,
     registerBatchTools,
     registerAnalysisTools,
+    registerPlayTestTools,
 } from "./tools/index";
 import { registerResources } from "./resources/index";
 
@@ -78,6 +79,7 @@ export function createMcpServer(bridge: UnityBridge): McpServer {
     registerEditorTools(server, bridge);
     registerBatchTools(server, bridge);
     registerAnalysisTools(server, bridge);
+    registerPlayTestTools(server, bridge);
 
     // Register resources
     registerResources(server, bridge);
