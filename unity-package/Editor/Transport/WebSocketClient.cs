@@ -24,6 +24,12 @@ namespace UnityAITools.Editor.Transport
         private int _keepAliveIntervalMs = 15000; // default 15s, updated from welcome
         private int _serverTimeoutMs = 30000;     // default 30s, updated from welcome
 
+        // Cached on main thread at construction — safe to read from background threads
+        private readonly string _projectName;
+        private readonly string _projectHash;
+        private readonly string _unityVersion;
+        private readonly string _projectPath;
+
         private const int ReconnectDelayMs = 3000;
         private const int ReceiveBufferSize = 1024 * 64; // 64KB
 
@@ -37,6 +43,10 @@ namespace UnityAITools.Editor.Transport
         public WebSocketClient(CommandDispatcher dispatcher)
         {
             _dispatcher = dispatcher;
+            _projectName = Application.productName;
+            _projectHash = ComputeProjectHash();
+            _unityVersion = Application.unityVersion;
+            _projectPath = Application.dataPath.Replace("/Assets", "");
         }
 
         /// <summary>
@@ -103,18 +113,23 @@ namespace UnityAITools.Editor.Transport
 
         /// <summary>
         /// Send a registration message to the MCP server.
+        /// Uses MiniJson instead of JsonUtility so it works from background threads
+        /// (domain reload reconnection runs off the main thread).
         /// </summary>
         public async Task RegisterAsync()
         {
-            var msg = new RegisterMessage
+            var dict = new Dictionary<string, object>
             {
-                project_name = Application.productName,
-                project_hash = ComputeProjectHash(),
-                unity_version = Application.unityVersion,
-                project_path = Application.dataPath.Replace("/Assets", "")
+                { "type", "register" },
+                { "project_name", _projectName },
+                { "project_hash", _projectHash },
+                { "unity_version", _unityVersion },
+                { "project_path", _projectPath }
             };
 
-            await SendAsync(JsonUtility.ToJson(msg));
+            var json = MiniJson.Serialize(dict);
+            Debug.Log($"[UnityAITools] Sending registration: {_projectName} ({_projectHash})");
+            await SendAsync(json);
         }
 
         /// <summary>
@@ -193,16 +208,19 @@ namespace UnityAITools.Editor.Transport
         {
             try
             {
-                // Parse the base message to determine type
-                var baseMsg = JsonUtility.FromJson<BaseMessage>(json);
+                // Use MiniJson instead of JsonUtility so this works from background threads
+                var parsed = MiniJson.Deserialize(json) as Dictionary<string, object>;
+                if (parsed == null) return;
 
-                switch (baseMsg.type)
+                var type = parsed.ContainsKey("type") ? parsed["type"] as string : null;
+
+                switch (type)
                 {
                     case "welcome":
-                        HandleWelcome(json);
+                        HandleWelcome(parsed);
                         break;
                     case "registered":
-                        HandleRegistered(json);
+                        HandleRegistered(parsed);
                         break;
                     case "execute_command":
                         HandleExecuteCommand(json);
@@ -211,7 +229,7 @@ namespace UnityAITools.Editor.Transport
                         HandlePing();
                         break;
                     default:
-                        Debug.LogWarning($"[UnityAITools] Unknown message type: {baseMsg.type}");
+                        Debug.LogWarning($"[UnityAITools] Unknown message type: {type}");
                         break;
                 }
             }
@@ -221,18 +239,22 @@ namespace UnityAITools.Editor.Transport
             }
         }
 
-        private async void HandleWelcome(string json)
+        private async void HandleWelcome(Dictionary<string, object> parsed)
         {
-            // Parse keep-alive parameters from server
             try
             {
-                var welcomeMsg = JsonUtility.FromJson<WelcomeMessage>(json);
-                if (welcomeMsg.keepAliveInterval > 0)
-                    _keepAliveIntervalMs = welcomeMsg.keepAliveInterval * 1000;
-                if (welcomeMsg.serverTimeout > 0)
-                    _serverTimeoutMs = welcomeMsg.serverTimeout * 1000;
+                if (parsed.ContainsKey("keepAliveInterval"))
+                {
+                    var ka = Convert.ToInt32(parsed["keepAliveInterval"]);
+                    if (ka > 0) _keepAliveIntervalMs = ka * 1000;
+                }
+                if (parsed.ContainsKey("serverTimeout"))
+                {
+                    var st = Convert.ToInt32(parsed["serverTimeout"]);
+                    if (st > 0) _serverTimeoutMs = st * 1000;
+                }
 
-                Debug.Log($"[UnityAITools] Received welcome (keepAlive: {welcomeMsg.keepAliveInterval}s, timeout: {welcomeMsg.serverTimeout}s), registering...");
+                Debug.Log($"[UnityAITools] Received welcome (keepAlive: {_keepAliveIntervalMs / 1000}s, timeout: {_serverTimeoutMs / 1000}s), registering...");
             }
             catch
             {
@@ -241,10 +263,9 @@ namespace UnityAITools.Editor.Transport
             await RegisterAsync();
         }
 
-        private void HandleRegistered(string json)
+        private void HandleRegistered(Dictionary<string, object> parsed)
         {
-            var msg = JsonUtility.FromJson<RegisteredMessage>(json);
-            _sessionId = msg.session_id;
+            _sessionId = parsed.ContainsKey("session_id") ? parsed["session_id"] as string : null;
             Debug.Log($"[UnityAITools] Registered with session: {_sessionId}");
 
             // Start background keep-alive loop (runs on thread pool, not main thread)
@@ -281,8 +302,8 @@ namespace UnityAITools.Editor.Transport
         {
             if (!string.IsNullOrEmpty(_sessionId))
             {
-                var pong = new PongMessage(_sessionId);
-                await SendAsync(JsonUtility.ToJson(pong));
+                var json = $"{{\"type\":\"pong\",\"session_id\":\"{_sessionId}\"}}";
+                await SendAsync(json);
             }
         }
 
