@@ -56,7 +56,17 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 
 ## Available Tools
 
-`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings` · `manage_devlog` · `manage_feedback`
+`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings` · `simulate_input` · `execute_method` · `read_runtime_state` · `capture_gameplay` · `manage_devlog` · `manage_feedback`
+
+`refresh_unity` automatically exits Play Mode before refreshing/compiling to reduce domain reload teardown errors from runtime object destruction.
+
+## Session Guardrails
+
+To improve continuity and reduce blind edits, mutating tool calls are blocked until the session reads `unity://project/devlog` at least once.
+
+- Read access: `manage_devlog` actions `list`, `get`, or `search`
+- Write tracking: `manage_devlog` actions `add` and `update`
+- Safety default: unknown tools are treated as mutating
 
 ## Resources
 
@@ -97,7 +107,7 @@ cd server
 bun test
 ```
 
-Runs 71 unit tests covering transport, tools, resources, and utilities.
+Runs server unit tests covering transport, tools, resources, and utilities.
 
 ### Unity Package
 
@@ -109,7 +119,7 @@ GitHub Actions runs three jobs on every pull request and push to `main`:
 
 | Job | What it runs |
 |-----|-------------|
-| MCP Server Tests | `bun test` — 71 unit tests |
+| MCP Server Tests | `bun test` — server unit tests |
 | MCP Server Type Check | `tsc --noEmit` |
 | Unity Package EditMode Tests | GameCI `unity-test-runner` — EditMode tests via Unity 6 |
 
