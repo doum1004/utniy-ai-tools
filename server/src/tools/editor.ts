@@ -41,7 +41,7 @@ export function registerEditorTools(server: McpServer, bridge: UnityBridge): voi
 
     server.tool(
         "refresh_unity",
-        "Refresh Unity asset database and trigger script compilation. When wait_for_ready is true (default), waits for Unity to finish compiling — including surviving the WebSocket disconnect caused by domain reload.",
+        "Refresh Unity asset database and trigger script compilation. Automatically exits Play Mode first to reduce domain-reload teardown errors. When wait_for_ready is true (default), waits for Unity to finish compiling — including surviving the WebSocket disconnect caused by domain reload.",
         {
             mode: z.enum(["normal", "force"]).optional().default("normal")
                 .describe("Refresh mode"),

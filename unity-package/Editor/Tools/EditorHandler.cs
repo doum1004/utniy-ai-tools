@@ -131,6 +131,14 @@ namespace UnityAITools.Editor.Tools
         {
             var mode = p.GetString("mode", "normal");
             var requestCompile = p.GetString("compile", "request") == "request";
+            var wasPlaying = EditorApplication.isPlaying;
+
+            if (wasPlaying)
+            {
+                // Stop play mode before refresh to avoid transient errors during
+                // domain reload from runtime object teardown.
+                EditorApplication.isPlaying = false;
+            }
 
             FocusEditorWindow();
 
@@ -149,7 +157,9 @@ namespace UnityAITools.Editor.Tools
             {
                 { "refreshed", true },
                 { "is_compiling", EditorApplication.isCompiling },
-                { "focus_requested", true }
+                { "focus_requested", true },
+                { "play_mode_stopped", wasPlaying },
+                { "is_playing", EditorApplication.isPlaying }
             };
 
             return new CommandResult { success = true, data = data };
