@@ -63,21 +63,23 @@ namespace UnityAITools.Editor.Services
             return null;
         }
 
-        public float[] GetVector3(string key)
+        public float[] GetFloatArray(string key)
         {
             if (!_params.TryGetValue(key, out var val)) return null;
-
-            if (val is List<object> list && list.Count >= 3)
+            if (val is List<object> list && list.Count > 0)
             {
-                return new[]
-                {
-                    Convert.ToSingle(list[0]),
-                    Convert.ToSingle(list[1]),
-                    Convert.ToSingle(list[2])
-                };
+                var arr = new float[list.Count];
+                for (int i = 0; i < list.Count; i++)
+                    arr[i] = Convert.ToSingle(list[i]);
+                return arr;
             }
-
             return null;
+        }
+
+        public float[] GetVector3(string key)
+        {
+            var arr = GetFloatArray(key);
+            return arr != null && arr.Length >= 3 ? arr : null;
         }
 
         public Vector3? GetUnityVector3(string key)

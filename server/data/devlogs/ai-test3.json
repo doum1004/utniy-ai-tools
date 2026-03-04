@@ -1,0 +1,19 @@
+{
+  "project": "ai-test3",
+  "entries": [
+    {
+      "id": "mmbo4mp2-p8o3",
+      "type": "plan",
+      "title": "Bomberman Local Multiplayer - Game Design Plan",
+      "body": "## Game: \"Bomb Blast\" - Local 2-Player Bomberman Clone\n\n### Core Concept\nTop-down 2D Bomberman on a grid. Two players share one keyboard. Place bombs to destroy walls and eliminate the opponent.\n\n### Grid Layout (11x11)\n- Indestructible walls in checkerboard pattern (odd rows/cols)\n- Destructible walls randomly placed (60% fill)\n- Starting corners cleared for each player\n\n### Player Controls\n- **Player 1**: WASD + Space (bomb)\n- **Player 2**: Arrow Keys + Enter (bomb)\n\n### Mechanics\n- Grid-based movement (smooth lerp between cells)\n- Bombs explode after 2.5s with cross-shaped blast (range 2)\n- Destructible walls break on explosion\n- Players die on explosion contact\n- Power-ups: extra bomb, bigger blast range, speed boost\n\n### Win Condition\n- Last player standing wins\n- Draw if both die simultaneously\n\n### Tech: URP 2D, top-down camera, simple colored sprites via materials",
+      "status": "active",
+      "tags": [
+        "design",
+        "bomberman",
+        "multiplayer"
+      ],
+      "created_at": "2026-03-04T06:41:16.262Z",
+      "updated_at": "2026-03-04T06:41:16.262Z"
+    }
+  ]
+}

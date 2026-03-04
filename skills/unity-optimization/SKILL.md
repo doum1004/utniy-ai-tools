@@ -1,5 +1,5 @@
 ---
-name: optimization
+name: unity-optimization
 description: Guide AI through Unity performance optimization — draw calls, batching, pooling, LOD, memory, and profiling workflows using analysis tools. Use when reviewing or improving scene/project performance.
 ---
 

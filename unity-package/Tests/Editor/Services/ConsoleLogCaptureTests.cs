@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityAITools.Editor.Services;
 
 namespace UnityAITools.Editor.Tests.Services
@@ -67,6 +68,7 @@ namespace UnityAITools.Editor.Tests.Services
         [Test]
         public void GetLogs_TypeFilterErrors_OnlyReturnsErrors()
         {
+            LogAssert.Expect(LogType.Error, "error msg");
             Debug.LogError("error msg");
             Debug.Log("normal msg");
             Debug.LogWarning("warning msg");
@@ -84,6 +86,10 @@ namespace UnityAITools.Editor.Tests.Services
         public void GetLogs_TypeFilterErrors_ReturnsRecentClientErrors()
         {
             var marker = "read_console_regression_" + System.Guid.NewGuid().ToString("N");
+            LogAssert.Expect(LogType.Error, marker + "_1");
+            LogAssert.Expect(LogType.Error, marker + "_2");
+            LogAssert.Expect(LogType.Error, marker + "_3");
+            LogAssert.Expect(LogType.Error, marker + "_4");
             Debug.LogError(marker + "_1");
             Debug.LogError(marker + "_2");
             Debug.LogError(marker + "_3");

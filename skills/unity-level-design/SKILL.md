@@ -1,5 +1,5 @@
 ---
-name: level-design
+name: unity-level-design
 description: Guide AI through scene composition, spatial layout, lighting, camera setup, and iterative level design using analysis feedback loops. Use when building or reviewing Unity scenes.
 ---
 

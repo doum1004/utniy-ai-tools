@@ -13,6 +13,7 @@
 import express from "express";
 import cors from "cors";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { PluginRegistry } from "./transport/plugin-registry";
 import { UnityBridge } from "./transport/unity-bridge";
@@ -154,7 +155,10 @@ async function main(): Promise<void> {
         const app = express();
         app.use(cors());
 
+        // Streamable HTTP sessions
         const sessions = new Map<string, { transport: StreamableHTTPServerTransport; server: ReturnType<typeof createMcpServer> }>();
+        // Legacy SSE sessions (backwards compat for clients like Cursor CLI)
+        const sseSessions = new Map<string, { transport: SSEServerTransport; server: ReturnType<typeof createMcpServer> }>();
 
         app.post("/mcp", async (req, res) => {
             const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -193,12 +197,36 @@ async function main(): Promise<void> {
 
         app.get("/mcp", async (req, res) => {
             const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+            // Streamable HTTP: existing session requesting SSE stream
             if (sessionId && sessions.has(sessionId)) {
                 const session = sessions.get(sessionId)!;
                 await session.transport.handleRequest(req, res);
                 return;
             }
-            res.status(400).json({ error: "No valid session. Send an initialize request first via POST." });
+
+            // Legacy SSE: no session ID means client wants to open an SSE stream
+            const transport = new SSEServerTransport("/messages", res);
+            const server = createMcpServer(bridge);
+
+            sseSessions.set(transport.sessionId, { transport, server });
+
+            transport.onclose = () => {
+                sseSessions.delete(transport.sessionId);
+            };
+
+            await server.connect(transport);
+            await transport.start();
+        });
+
+        app.post("/messages", async (req, res) => {
+            const sessionId = req.query.sessionId as string;
+            const session = sseSessions.get(sessionId);
+            if (!session) {
+                res.status(404).json({ error: "SSE session not found" });
+                return;
+            }
+            await session.transport.handlePostMessage(req, res);
         });
 
         app.delete("/mcp", async (req, res) => {
@@ -219,13 +247,14 @@ async function main(): Promise<void> {
                 version: "0.1.0",
                 unity_connected: bridge.isConnected,
                 connections: registry.sessionCount,
-                mcp_sessions: sessions.size
+                mcp_sessions: sessions.size,
+                sse_sessions: sseSessions.size,
             });
         });
 
         httpServer = await listenWithRetry("MCP HTTP", MCP_PORT, () =>
             app.listen(MCP_PORT, () => {
-                console.log(`📡 MCP Streamable HTTP endpoint ready at http://localhost:${MCP_PORT}/mcp`);
+                console.log(`📡 MCP endpoint ready at http://localhost:${MCP_PORT}/mcp (Streamable HTTP + SSE)`);
                 console.log(`❤️  Health check at http://localhost:${MCP_PORT}/health`);
             }),
         );

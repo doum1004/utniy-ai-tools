@@ -1,0 +1,64 @@
+.mcp-root-scroll {
+    flex-grow: 1;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.mcp-title {
+    -unity-font-style: bold;
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+
+.mcp-help-container {
+    margin-bottom: 10px;
+}
+
+.mcp-status {
+    margin-bottom: 2px;
+}
+
+.mcp-row {
+    flex-direction: row;
+    margin-bottom: 10px;
+}
+
+.mcp-session-key {
+    min-width: 52px;
+}
+
+.mcp-session-value {
+    margin-left: 8px;
+    flex-grow: 1;
+}
+
+.mcp-button {
+    height: 30px;
+    margin-bottom: 6px;
+}
+
+.mcp-button-primary {
+    margin-top: 2px;
+}
+
+.mcp-button-annotate {
+    height: 28px;
+    margin-bottom: 10px;
+}
+
+.mcp-separator {
+    height: 1px;
+    background-color: rgba(64, 64, 64, 1);
+    margin-bottom: 10px;
+}
+
+.mcp-response-label {
+    margin-top: 8px;
+}
+
+#read-console-response-field {
+    height: 180px;
+    white-space: normal;
+}

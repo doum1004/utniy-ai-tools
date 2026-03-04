@@ -13,7 +13,8 @@ export function registerPlayTestTools(server: McpServer, bridge: UnityBridge): v
         "simulate_input",
         "Simulate keyboard and mouse input in Unity Play mode for QA testing. " +
         "Supports key presses (with optional hold duration), mouse clicks, moves, and drags. " +
-        "Unity must be in Play mode.",
+        "Note: Uses IMGUI SendEvent — works best with legacy Input. For UI Toolkit or new Input System, " +
+        "prefer execute_method to call game methods directly. Unity must be in Play mode.",
         {
             action: z.enum(["key_press", "key_down", "key_up", "mouse_click", "mouse_move", "mouse_drag"])
                 .describe("Input action type"),
@@ -32,6 +33,28 @@ export function registerPlayTestTools(server: McpServer, bridge: UnityBridge): v
         },
         async (params) => {
             const response = await bridge.sendCommand("simulate_input", params);
+            return formatToolResult(response);
+        },
+    );
+
+    server.tool(
+        "execute_method",
+        "Execute a method on a runtime GameObject/component or a static method during Play mode. " +
+        "Use this to trigger game logic directly — e.g., load a level, click a UI button programmatically, " +
+        "set player health, call GameManager.StartGame(). More reliable than simulate_input for UI Toolkit " +
+        "and new Input System games. Unity must be in Play mode.",
+        {
+            target: z.string().optional()
+                .describe("GameObject name/path to find (e.g., 'GameManager', '/UI/PlayButton'). Omit for static calls."),
+            component: z.string()
+                .describe("Component type name (e.g., 'GameManager', 'Button', 'PlayerController')"),
+            method: z.string()
+                .describe("Method name to invoke (e.g., 'StartGame', 'onClick.Invoke', 'TakeDamage')"),
+            args: z.array(z.union([z.string(), z.number(), z.boolean()])).optional()
+                .describe("Method arguments (simple types only: string, number, boolean)"),
+        },
+        async (params) => {
+            const response = await bridge.sendCommand("execute_method", params);
             return formatToolResult(response);
         },
     );

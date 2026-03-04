@@ -43,7 +43,7 @@ namespace UnityAITools.Editor.Services
         // Background reconnect monitor — runs independently of Unity's main thread update loop.
         // This ensures reconnection works even when Unity is unfocused or between domain reloads.
         private CancellationTokenSource _monitorCts;
-        private const int MonitorIntervalMs = 5000;
+        private const int MonitorIntervalMs = 2000;
 
         // SessionState keys — survive domain reloads but not Editor restarts
         private const string KeyWasConnected = "UnityAITools_WasConnected";
@@ -64,6 +64,8 @@ namespace UnityAITools.Editor.Services
 
         private void Setup()
         {
+            AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+
             ConsoleLogCapture.Instance.Register();
             _dispatcher = new CommandDispatcher();
 
@@ -118,6 +120,7 @@ namespace UnityAITools.Editor.Services
             _dispatcher.RegisterHandler("simulate_input", playTestHandler);
             _dispatcher.RegisterHandler("read_runtime_state", playTestHandler);
             _dispatcher.RegisterHandler("capture_gameplay", playTestHandler);
+            _dispatcher.RegisterHandler("execute_method", playTestHandler);
 
             // Commands that modify assets/scripts and need a refresh
             var refreshCommands = new HashSet<string> {
@@ -144,6 +147,7 @@ namespace UnityAITools.Editor.Services
                     SessionState.SetBool(KeyWasConnected, true);
                     SessionState.SetString(KeyServerUrl, _lastServerUrl);
                     EditorApplication.update += BackgroundTick;
+                    EnsureAutoRefreshEnabled();
                 };
                 NotifyStatusChanged();
             };
@@ -198,9 +202,10 @@ namespace UnityAITools.Editor.Services
                 return;
             _lastBackgroundTick = now;
 
-            // Force the editor to repaint so update callbacks keep firing even when unfocused
+            // Force the editor to stay responsive when unfocused
             if (!UnityEditorInternal.InternalEditorUtility.isApplicationActive)
             {
+                EditorApplication.QueuePlayerLoopUpdate();
                 UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
             }
 
@@ -208,12 +213,30 @@ namespace UnityAITools.Editor.Services
             if (_pendingRefresh)
             {
                 _pendingRefresh = false;
-                AssetDatabase.Refresh();
+                AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            }
+        }
+
+        /// <summary>
+        /// Called by Unity just before a domain reload (script recompilation).
+        /// Must tear down the WebSocket synchronously so background threads don't
+        /// block the reload — the root cause of Unity hanging when unfocused.
+        /// </summary>
+        private void OnBeforeAssemblyReload()
+        {
+            Debug.Log("[UnityAITools] Domain reload imminent — tearing down WebSocket...");
+            _monitorCts?.Cancel();
+            EditorApplication.update -= BackgroundTick;
+
+            if (Client != null)
+            {
+                Client.AbortImmediate();
             }
         }
 
         private void OnQuitting()
         {
+            AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
             _monitorCts?.Cancel();
             EditorApplication.update -= BackgroundTick;
             Disconnect();
@@ -242,6 +265,7 @@ namespace UnityAITools.Editor.Services
             _wasConnected = false;
             EditorApplication.update -= BackgroundTick;
             SessionState.SetBool(KeyWasConnected, false);
+            RestoreAutoRefreshSetting();
             if (Client != null && Client.IsConnected)
             {
                 _ = Client.DisconnectAsync();
@@ -299,6 +323,12 @@ namespace UnityAITools.Editor.Services
                         Debug.Log("[UnityAITools] Monitor: connection lost, triggering reconnect...");
                         await TryReconnectingAsync();
                     }
+
+                    // Wake the editor so EditorApplication.update / delayCall
+                    // keep firing even when Unity is unfocused.
+                    // Heavy-duty reload forcing is handled by BackgroundReloadForcer.
+                    try { EditorApplication.QueuePlayerLoopUpdate(); }
+                    catch { /* May fail during domain reload */ }
                 }
                 catch (OperationCanceledException)
                 {
@@ -317,6 +347,41 @@ namespace UnityAITools.Editor.Services
             // Fire event on main thread
             var callback = new EditorApplication.CallbackFunction(() => OnStatusChanged?.Invoke());
             EditorApplication.delayCall += callback;
+        }
+
+        private static void RestoreAutoRefreshSetting()
+        {
+            if (!SessionState.GetBool("UnityAITools_AutoRefreshOverridden", false)) return;
+
+            var saved = SessionState.GetInt("UnityAITools_PrevAutoRefreshMode", 1);
+            EditorPrefs.SetInt("kAutoRefreshMode", saved);
+            SessionState.SetBool("UnityAITools_AutoRefreshOverridden", false);
+            Debug.Log($"[UnityAITools] Auto Refresh restored to mode {saved}");
+        }
+
+        /// <summary>
+        /// Ensures Auto Refresh is set to "Enabled" (mode 1) so Unity recompiles
+        /// scripts immediately — even when the editor window doesn't have OS focus.
+        /// Without this, domain reload stalls until the user alt-tabs back to Unity.
+        /// The previous value is saved so it can be restored on disconnect.
+        /// </summary>
+        private static void EnsureAutoRefreshEnabled()
+        {
+            const string key = "kAutoRefreshMode";
+            const string savedKey = "UnityAITools_PrevAutoRefreshMode";
+            var current = EditorPrefs.GetInt(key, 1);
+
+            // 0 = Disabled, 1 = Enabled (always), 2 = Enabled Outside Playmode
+            if (current == 1) return;
+
+            if (!SessionState.GetBool("UnityAITools_AutoRefreshOverridden", false))
+            {
+                SessionState.SetInt(savedKey, current);
+                SessionState.SetBool("UnityAITools_AutoRefreshOverridden", true);
+            }
+
+            EditorPrefs.SetInt(key, 1);
+            Debug.Log($"[UnityAITools] Auto Refresh changed from mode {current} to 1 (always enabled) for MCP compatibility");
         }
 
         /// <summary>

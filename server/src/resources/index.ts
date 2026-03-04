@@ -4,6 +4,8 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { UnityBridge } from "../transport/unity-bridge";
+import { resolve } from "path";
+import { readFileSync, existsSync } from "fs";
 
 export function registerResources(server: McpServer, bridge: UnityBridge): void {
     // Editor state — compiling, ready, blocking reasons
@@ -125,6 +127,65 @@ export function registerResources(server: McpServer, bridge: UnityBridge): void 
                     uri: "unity://project/layers",
                     mimeType: "application/json",
                     text: JSON.stringify(response.data ?? response, null, 2),
+                }],
+            };
+        },
+    );
+
+    // Dev log — persistent development journal for cross-session context
+    server.resource(
+        "devlog",
+        "unity://project/devlog",
+        {
+            description: "Development journal — plans, decisions, milestones, issues, and iteration history. Read this at session start to understand what has been done and what's next.",
+            mimeType: "application/json",
+        },
+        async () => {
+            const sessions = await bridge.getSessions();
+            let projectKey = "_unlinked";
+            let projectName = "unlinked";
+            if (sessions.size > 0) {
+                const first = sessions.values().next().value!;
+                projectKey = first.project.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+                projectName = first.project;
+            }
+
+            const dataDir = resolve(
+                process.env.DEVLOG_DIR ?? resolve(import.meta.dir, "../../data/devlogs"),
+            );
+            const filePath = resolve(dataDir, `${projectKey}.json`);
+
+            let log = { project: projectName, entries: [] as unknown[] };
+            if (existsSync(filePath)) {
+                try {
+                    log = JSON.parse(readFileSync(filePath, "utf-8"));
+                } catch { /* return empty */ }
+            }
+
+            const entries = log.entries as Array<{
+                id: string; type: string; title: string; body: string;
+                status: string; tags: string[]; parent_id?: string;
+                created_at: string; updated_at: string;
+            }>;
+
+            const active = entries.filter((e) => e.status === "active");
+            const recentCompleted = entries
+                .filter((e) => e.status === "completed")
+                .slice(-10);
+
+            const summary = {
+                project: log.project,
+                total_entries: entries.length,
+                active_entries: active.length,
+                active: active,
+                recent_completed: recentCompleted,
+            };
+
+            return {
+                contents: [{
+                    uri: "unity://project/devlog",
+                    mimeType: "application/json",
+                    text: JSON.stringify(summary, null, 2),
                 }],
             };
         },

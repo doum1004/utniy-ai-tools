@@ -41,7 +41,7 @@ export function registerEditorTools(server: McpServer, bridge: UnityBridge): voi
 
     server.tool(
         "refresh_unity",
-        "Refresh Unity asset database and trigger script compilation",
+        "Refresh Unity asset database and trigger script compilation. When wait_for_ready is true (default), waits for Unity to finish compiling — including surviving the WebSocket disconnect caused by domain reload.",
         {
             mode: z.enum(["normal", "force"]).optional().default("normal")
                 .describe("Refresh mode"),
@@ -50,11 +50,66 @@ export function registerEditorTools(server: McpServer, bridge: UnityBridge): voi
             compile: z.enum(["none", "request"]).optional().default("request")
                 .describe("Whether to request compilation"),
             wait_for_ready: z.boolean().optional().default(true)
-                .describe("Wait until Unity is ready after refresh"),
+                .describe("Wait until Unity is ready after refresh (survives domain reload disconnect)"),
         },
         async (params) => {
-            const response = await bridge.sendCommand("refresh_unity", params);
-            return formatToolResult(response);
+            const refreshResponse = await bridge.sendCommand("refresh_unity", params);
+
+            if (!refreshResponse.success) {
+                return formatToolResult(refreshResponse);
+            }
+
+            if (!params.wait_for_ready) {
+                return formatToolResult(refreshResponse);
+            }
+
+            const deadline = Date.now() + 90_000;
+            let isCompiling = (refreshResponse.data as Record<string, unknown>)?.is_compiling === true;
+            let reconnected = false;
+            let pollCount = 0;
+
+            while (Date.now() < deadline) {
+                await Bun.sleep(isCompiling || !reconnected ? 2000 : 1000);
+                pollCount++;
+
+                const stateResponse = await bridge.sendCommand("get_editor_state", {});
+
+                if (!stateResponse.success) {
+                    // Unity is likely disconnected (domain reload). Keep waiting.
+                    reconnected = false;
+                    continue;
+                }
+
+                reconnected = true;
+                const state = stateResponse.data as Record<string, unknown>;
+                isCompiling = state?.is_compiling === true;
+
+                if (!isCompiling) {
+                    return {
+                        content: [{
+                            type: "text" as const,
+                            text: JSON.stringify({
+                                refreshed: true,
+                                ready: true,
+                                waited_polls: pollCount,
+                                is_compiling: false,
+                            }, null, 2),
+                        }],
+                    };
+                }
+            }
+
+            return {
+                content: [{
+                    type: "text" as const,
+                    text: JSON.stringify({
+                        refreshed: true,
+                        ready: false,
+                        warning: "Unity is still compiling after 90s timeout",
+                        waited_polls: pollCount,
+                    }, null, 2),
+                }],
+            };
         },
     );
 

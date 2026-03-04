@@ -1,0 +1,22 @@
+{
+  "project": "ai-test2",
+  "entries": [
+    {
+      "id": "mmbktcdz-bhoy",
+      "type": "milestone",
+      "title": "Game juice & gameplay improvements pass",
+      "body": "Added 7 major improvements to Party Rush:\n\n1. **CameraShake** (Assets/Scripts/Effects/CameraShake.cs) - Perlin noise screen shake on knockback, eliminations, respawns. Trauma-based decay system.\n\n2. **Sprint FOV effect** - Camera FOV widens from 60 to 72 when sprinting at speed, smoothly interpolated.\n\n3. **CharacterEffects** (Assets/Scripts/Effects/CharacterEffects.cs) - Landing squash/stretch animation, dust particles on hard landing, sprint trail renderer.\n\n4. **Double Jump + Wall Jump** - CharacterMotor now supports 1 air jump, wall sliding (reduced fall speed), wall jumping with knockback and particle effects. Bots also use these abilities.\n\n5. **ComboSystem** (Assets/Scripts/Core/ComboSystem.cs) - Checkpoint streak bonuses (50/150/300/500 pts), speed bonuses, near-miss detection. New EventBus.OnComboScored event.\n\n6. **Enhanced HUD** - Bottom bar with live position tracker, speed bar with color thresholds, score/streak display, combo popup notifications. Updated GameHUD.uxml and GameHUD.uss.\n\n7. **AudioManager** (Assets/Scripts/Effects/AudioManager.cs) - Procedurally generated SFX (countdown beeps, checkpoint chimes, elimination tones, victory fanfare, combo pings) and ambient music loops. Attached via SceneBootstrapper.",
+      "status": "completed",
+      "tags": [
+        "game-feel",
+        "movement",
+        "scoring",
+        "ui",
+        "audio",
+        "effects"
+      ],
+      "created_at": "2026-03-04T05:08:30.839Z",
+      "updated_at": "2026-03-04T05:08:30.839Z"
+    }
+  ]
+}

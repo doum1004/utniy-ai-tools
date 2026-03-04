@@ -7,6 +7,8 @@ using UnityAITools.Editor.Services;
 using UnityAITools.Editor.Annotations;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using UnityEditor.UIElements;
+using UnityEngine.UIElements;
 
 namespace UnityAITools.Editor.Windows
 {
@@ -16,6 +18,9 @@ namespace UnityAITools.Editor.Windows
     /// </summary>
     public class McpControlWindow : EditorWindow
     {
+        private const string UxmlPath = "Packages/com.unity-ai-tools/Editor/Windows/McpControlWindow.uxml";
+        private const string UssPath = "Packages/com.unity-ai-tools/Editor/Windows/McpControlWindow.uss";
+
         private string _serverUrl = "ws://localhost:8091";
         private string _testTypesCsv = "error,warning,log";
         private int _testCount = 50;
@@ -24,8 +29,20 @@ namespace UnityAITools.Editor.Windows
         private bool _isReadConsoleTesting;
         private bool _showReadConsoleDebug;
         private string _readConsoleTestResponse = "No test run yet.";
-        private Vector2 _mainScroll;
-        private Vector2 _readConsoleResponseScroll;
+
+        private Label _statusLabel;
+        private Label _sessionValueLabel;
+        private TextField _serverUrlField;
+        private Button _connectButton;
+        private Button _disconnectButton;
+        private Button _annotateButton;
+        private Foldout _debugFoldout;
+        private TextField _typesField;
+        private IntegerField _countField;
+        private Toggle _includeStackTraceToggle;
+        private DropdownField _formatField;
+        private Button _runReadConsoleTestButton;
+        private TextField _readConsoleResponseField;
 
         [MenuItem("Window/Unity AI Tools")]
         public static void ShowWindow()
@@ -38,168 +55,243 @@ namespace UnityAITools.Editor.Windows
         private void OnEnable()
         {
             _serverUrl = EditorPrefs.GetString("UnityAITools_ServerUrl", "ws://localhost:8091");
-            
+
             if (McpBackgroundService.Instance != null)
             {
-                McpBackgroundService.Instance.OnStatusChanged += Repaint;
+                McpBackgroundService.Instance.OnStatusChanged += OnExternalStateChanged;
             }
             else
             {
                 EditorApplication.delayCall += () => {
                     if (McpBackgroundService.Instance != null)
-                        McpBackgroundService.Instance.OnStatusChanged += Repaint;
+                        McpBackgroundService.Instance.OnStatusChanged += OnExternalStateChanged;
                 };
             }
 
-            AnnotationSession.Instance.OnChanged += Repaint;
+            AnnotationSession.Instance.OnChanged += OnExternalStateChanged;
         }
 
         private void OnDisable()
         {
             if (McpBackgroundService.Instance != null)
             {
-                McpBackgroundService.Instance.OnStatusChanged -= Repaint;
+                McpBackgroundService.Instance.OnStatusChanged -= OnExternalStateChanged;
             }
-            AnnotationSession.Instance.OnChanged -= Repaint;
+            AnnotationSession.Instance.OnChanged -= OnExternalStateChanged;
         }
 
-        private void OnGUI()
+        public void CreateGUI()
         {
-            _mainScroll = EditorGUILayout.BeginScrollView(_mainScroll);
-            GUILayout.Space(10);
+            rootVisualElement.Clear();
+            BuildUiFromTemplate();
+            RefreshUi();
+        }
 
-            // Header
-            var headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 16 };
-            GUILayout.Label("Unity AI Tools", headerStyle);
-            GUILayout.Space(5);
+        private void BuildUiFromTemplate()
+        {
+            var visualTree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(UxmlPath);
+            if (visualTree == null)
+            {
+                rootVisualElement.Add(new HelpBox(
+                    $"Missing UI template at: {UxmlPath}",
+                    HelpBoxMessageType.Error));
+                return;
+            }
 
-            EditorGUILayout.HelpBox(
-                "Connect to the MCP server to enable AI-assisted development.\nThe connection stays alive in the background even if you close this window.",
-                MessageType.Info);
+            visualTree.CloneTree(rootVisualElement);
+            var styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(UssPath);
+            if (styleSheet != null && !rootVisualElement.styleSheets.Contains(styleSheet))
+                rootVisualElement.styleSheets.Add(styleSheet);
 
-            GUILayout.Space(10);
+            BuildHelpBoxes();
+            BindElements();
+            BindCallbacks();
+        }
 
+        private void BuildHelpBoxes()
+        {
+            var introContainer = rootVisualElement.Q<VisualElement>("intro-help-container");
+            var configContainer = rootVisualElement.Q<VisualElement>("config-help-container");
+            var debugContainer = rootVisualElement.Q<VisualElement>("debug-help-container");
+
+            if (introContainer != null)
+            {
+                introContainer.Clear();
+                introContainer.Add(new HelpBox(
+                    "Connect to the MCP server to enable AI-assisted development.\nThe connection stays alive in the background even if you close this window.",
+                    HelpBoxMessageType.Info));
+            }
+
+            if (configContainer != null)
+            {
+                configContainer.Clear();
+                configContainer.Add(new HelpBox(
+                    "Configure your MCP client to connect to:\nhttp://localhost:8090/mcp",
+                    HelpBoxMessageType.None));
+            }
+
+            if (debugContainer != null)
+            {
+                debugContainer.Clear();
+                debugContainer.Add(new HelpBox(
+                    "Runs read_console locally inside Unity and shows raw JSON response for debugging.",
+                    HelpBoxMessageType.None));
+            }
+        }
+
+        private void BindElements()
+        {
+            _statusLabel = rootVisualElement.Q<Label>("status-label");
+            _sessionValueLabel = rootVisualElement.Q<Label>("session-value-label");
+            _serverUrlField = rootVisualElement.Q<TextField>("server-url-field");
+            _connectButton = rootVisualElement.Q<Button>("connect-button");
+            _disconnectButton = rootVisualElement.Q<Button>("disconnect-button");
+            _annotateButton = rootVisualElement.Q<Button>("annotate-button");
+            _debugFoldout = rootVisualElement.Q<Foldout>("debug-foldout");
+            _typesField = rootVisualElement.Q<TextField>("types-field");
+            _countField = rootVisualElement.Q<IntegerField>("count-field");
+            _includeStackTraceToggle = rootVisualElement.Q<Toggle>("include-stacktrace-toggle");
+            _formatField = rootVisualElement.Q<DropdownField>("format-field");
+            _runReadConsoleTestButton = rootVisualElement.Q<Button>("run-read-console-button");
+            _readConsoleResponseField = rootVisualElement.Q<TextField>("read-console-response-field");
+
+            if (_serverUrlField != null)
+                _serverUrlField.value = _serverUrl;
+            if (_debugFoldout != null)
+                _debugFoldout.value = _showReadConsoleDebug;
+            if (_typesField != null)
+                _typesField.value = _testTypesCsv;
+            if (_countField != null)
+                _countField.value = _testCount;
+            if (_includeStackTraceToggle != null)
+                _includeStackTraceToggle.value = _testIncludeStackTrace;
+            if (_formatField != null)
+            {
+                _formatField.choices = new List<string> { "summary", "detailed" };
+                _formatField.index = Mathf.Clamp(_testFormatIndex, 0, _formatField.choices.Count - 1);
+            }
+            if (_readConsoleResponseField != null)
+            {
+                _readConsoleResponseField.multiline = true;
+                _readConsoleResponseField.isReadOnly = true;
+                _readConsoleResponseField.value = _readConsoleTestResponse;
+            }
+        }
+
+        private void BindCallbacks()
+        {
+            if (_serverUrlField != null)
+            {
+                _serverUrlField.RegisterValueChangedCallback(evt =>
+                {
+                    _serverUrl = evt.newValue;
+                    EditorPrefs.SetString("UnityAITools_ServerUrl", _serverUrl);
+                });
+            }
+
+            if (_connectButton != null)
+                _connectButton.clicked += OnConnectClicked;
+            if (_disconnectButton != null)
+                _disconnectButton.clicked += OnDisconnectClicked;
+            if (_annotateButton != null)
+                _annotateButton.clicked += OnAnnotateClicked;
+            if (_debugFoldout != null)
+                _debugFoldout.RegisterValueChangedCallback(evt => _showReadConsoleDebug = evt.newValue);
+            if (_typesField != null)
+                _typesField.RegisterValueChangedCallback(evt => _testTypesCsv = evt.newValue);
+            if (_countField != null)
+                _countField.RegisterValueChangedCallback(evt => _testCount = Mathf.Max(1, evt.newValue));
+            if (_includeStackTraceToggle != null)
+                _includeStackTraceToggle.RegisterValueChangedCallback(evt => _testIncludeStackTrace = evt.newValue);
+            if (_formatField != null)
+                _formatField.RegisterValueChangedCallback(evt => _testFormatIndex = evt.newValue == "detailed" ? 1 : 0);
+            if (_runReadConsoleTestButton != null)
+                _runReadConsoleTestButton.clicked += () => _ = RunReadConsoleTestAsync();
+        }
+
+        private void OnExternalStateChanged()
+        {
+            RefreshUi();
+        }
+
+        private void RefreshUi()
+        {
             var svc = McpBackgroundService.Instance;
             if (svc == null)
             {
-                EditorGUILayout.HelpBox("Initializing background service...", MessageType.Warning);
+                if (_statusLabel != null) _statusLabel.text = "Status: Initializing background service...";
+                if (_sessionValueLabel != null) _sessionValueLabel.text = "-";
+                if (_connectButton != null) _connectButton.SetEnabled(false);
+                if (_disconnectButton != null) _disconnectButton.SetEnabled(false);
+                if (_annotateButton != null) _annotateButton.SetEnabled(false);
                 return;
             }
 
-            // Connection status
             var isConnected = svc.Client != null && svc.Client.IsConnected;
             var isConnecting = svc.IsConnecting;
-            
-            var statusText = isConnected ? "🟢 Connected" : (isConnecting ? "🟡 Connecting..." : "🔴 Disconnected");
-            var statusStyle = new GUIStyle(EditorStyles.label) { fontSize = 14 };
-            GUILayout.Label($"Status: {statusText}", statusStyle);
+            var statusText = isConnected ? "Connected" : (isConnecting ? "Connecting..." : "Disconnected");
 
-            if (isConnected && svc.Client?.SessionId != null)
+            if (_statusLabel != null)
+                _statusLabel.text = $"Status: {statusText}";
+            if (_sessionValueLabel != null)
+                _sessionValueLabel.text = isConnected && svc.Client?.SessionId != null ? svc.Client.SessionId : "-";
+            if (_connectButton != null)
+                _connectButton.SetEnabled(!isConnecting && !isConnected);
+            if (_disconnectButton != null)
+                _disconnectButton.SetEnabled(isConnected || isConnecting);
+            if (_annotateButton != null)
             {
-                EditorGUILayout.LabelField("Session", svc.Client.SessionId);
+                _annotateButton.SetEnabled(true);
+                _annotateButton.text = AnnotationSession.Instance.IsAnnotating ? "Stop Annotating" : "Annotate Scene";
             }
-
-            GUILayout.Space(10);
-
-            // Server URL
-            EditorGUI.BeginChangeCheck();
-            _serverUrl = EditorGUILayout.TextField("Server URL", _serverUrl);
-            if (EditorGUI.EndChangeCheck())
-            {
-                EditorPrefs.SetString("UnityAITools_ServerUrl", _serverUrl);
-            }
-
-            GUILayout.Space(10);
-
-            // Connect button
-            EditorGUI.BeginDisabledGroup(isConnecting || isConnected);
-            if (GUILayout.Button("Connect", GUILayout.Height(32)))
-            {
-                svc.Connect(_serverUrl);
-            }
-            EditorGUI.EndDisabledGroup();
-
-            // Disconnect button (always enabled if connected, allowed even during connection attempts)
-            EditorGUI.BeginDisabledGroup(!isConnected && !isConnecting);
-            if (GUILayout.Button("Disconnect", GUILayout.Height(32)))
-            {
-                svc.Disconnect();
-            }
-            EditorGUI.EndDisabledGroup();
-
-            GUILayout.Space(10);
-
-            // Annotation section
-            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-            var annotSession = AnnotationSession.Instance;
-            var annotLabel = annotSession.IsAnnotating ? "Stop Annotating" : "Annotate Scene";
-            var annotBgColor = annotSession.IsAnnotating ? new Color(1f, 0.4f, 0.4f) : new Color(0.4f, 0.8f, 1f);
-            var prevBg = GUI.backgroundColor;
-            GUI.backgroundColor = annotBgColor;
-            if (GUILayout.Button(annotLabel, GUILayout.Height(28)))
-            {
-                if (annotSession.IsAnnotating)
-                    annotSession.DisableAnnotating();
-                else
-                    annotSession.EnableAnnotating();
-                SceneView.RepaintAll();
-                AnnotationToolbar.ShowWindow();
-            }
-            GUI.backgroundColor = prevBg;
-
-            GUILayout.Space(10);
-
-            // MCP Client configuration help
-            EditorGUILayout.HelpBox(
-                "Configure your MCP client to connect to:\nhttp://localhost:8090/mcp",
-                MessageType.None);
-
-            GUILayout.Space(8);
-            DrawReadConsoleTestArea(svc);
-            EditorGUILayout.EndScrollView();
         }
 
-        private void DrawReadConsoleTestArea(McpBackgroundService svc)
+        private void OnConnectClicked()
         {
-            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-            _showReadConsoleDebug = EditorGUILayout.Foldout(
-                _showReadConsoleDebug,
-                "Debug: Read Console Test",
-                true);
-            if (!_showReadConsoleDebug)
-                return;
-
-            EditorGUILayout.HelpBox(
-                "Runs read_console locally inside Unity and shows raw JSON response for debugging.",
-                MessageType.None);
-
-            _testTypesCsv = EditorGUILayout.TextField("Types (csv)", _testTypesCsv);
-            _testCount = EditorGUILayout.IntField("Count", Mathf.Max(1, _testCount));
-            _testIncludeStackTrace = EditorGUILayout.Toggle("Include Stacktrace", _testIncludeStackTrace);
-            _testFormatIndex = EditorGUILayout.Popup("Format", _testFormatIndex, new[] { "summary", "detailed" });
-
-            EditorGUI.BeginDisabledGroup(_isReadConsoleTesting);
-            if (GUILayout.Button(_isReadConsoleTesting ? "Running..." : "Run Read Console Test"))
-            {
-                _ = RunReadConsoleTestAsync(svc);
-            }
-            EditorGUI.EndDisabledGroup();
-
-            GUILayout.Space(6);
-            EditorGUILayout.LabelField("Raw Response:");
-            _readConsoleResponseScroll = EditorGUILayout.BeginScrollView(_readConsoleResponseScroll, GUILayout.Height(180));
-            EditorGUILayout.TextArea(_readConsoleTestResponse, GUILayout.ExpandHeight(true));
-            EditorGUILayout.EndScrollView();
+            var svc = McpBackgroundService.Instance;
+            if (svc == null) return;
+            svc.Connect(_serverUrlField != null ? _serverUrlField.value : _serverUrl);
+            RefreshUi();
         }
 
-        private async Task RunReadConsoleTestAsync(McpBackgroundService svc)
+        private void OnDisconnectClicked()
+        {
+            var svc = McpBackgroundService.Instance;
+            if (svc == null) return;
+            svc.Disconnect();
+            RefreshUi();
+        }
+
+        private void OnAnnotateClicked()
+        {
+            var annotSession = AnnotationSession.Instance;
+            if (annotSession.IsAnnotating)
+                annotSession.DisableAnnotating();
+            else
+                annotSession.EnableAnnotating();
+
+            SceneView.RepaintAll();
+            AnnotationToolbar.ShowWindow();
+            RefreshUi();
+        }
+
+        private async Task RunReadConsoleTestAsync()
         {
             _isReadConsoleTesting = true;
             _readConsoleTestResponse = "Running read_console...";
-            Repaint();
+            UpdateDebugResponseText();
+            if (_runReadConsoleTestButton != null)
+            {
+                _runReadConsoleTestButton.text = "Running...";
+                _runReadConsoleTestButton.SetEnabled(false);
+            }
 
             try
             {
+                var svc = McpBackgroundService.Instance;
+                if (svc == null)
+                    throw new InvalidOperationException("Background service is not initialized.");
+
                 var types = ParseTypes(_testTypesCsv);
                 var parameters = new Dictionary<string, object>
                 {
@@ -227,8 +319,19 @@ namespace UnityAITools.Editor.Windows
             finally
             {
                 _isReadConsoleTesting = false;
-                Repaint();
+                if (_runReadConsoleTestButton != null)
+                {
+                    _runReadConsoleTestButton.text = "Run Read Console Test";
+                    _runReadConsoleTestButton.SetEnabled(true);
+                }
+                UpdateDebugResponseText();
             }
+        }
+
+        private void UpdateDebugResponseText()
+        {
+            if (_readConsoleResponseField != null)
+                _readConsoleResponseField.value = _readConsoleTestResponse;
         }
 
         private static List<object> ParseTypes(string csv)

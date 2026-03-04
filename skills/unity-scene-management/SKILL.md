@@ -1,5 +1,5 @@
 ---
-name: scene-management
+name: unity-scene-management
 description: Guide AI through Unity scene hierarchy organization, object reparenting, material workflows, and MCP tool limitations with workarounds. Use when organizing scene trees, bulk-modifying objects, or hitting MCP tool issues.
 ---
 

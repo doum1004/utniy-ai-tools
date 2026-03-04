@@ -1,5 +1,5 @@
 ---
-name: testing-debugging
+name: unity-testing-debugging
 description: Guide AI through Unity test writing (EditMode/PlayMode), error analysis, debugging workflows, and console log interpretation using MCP tools. Use when writing tests, investigating bugs, or analyzing runtime errors.
 ---
 
@@ -141,6 +141,19 @@ simulate_input(action="mouse_drag", from=[100, 100], to=[500, 300])
 
 Key names: `W`, `A`, `S`, `D`, `Space`, `Return`, `Escape`, `LeftShift`, `F1`-`F15`, `UpArrow`, etc.
 Requires Play mode — call `manage_editor(action="play")` first.
+
+**Note:** `simulate_input` uses IMGUI SendEvent, which works with legacy Input. For games using **UI Toolkit** or the **new Input System**, use `execute_method` instead.
+
+### execute_method — Call game logic directly
+
+```
+execute_method(component="GameManager", method="StartGame")                         → call method on any instance
+execute_method(target="Player", component="PlayerController", method="TakeDamage", args=[50])
+execute_method(component="Button", method="onClick.Invoke")                         → trigger UnityEvent
+execute_method(target="/UI/PlayButton", component="Button", method="onClick.Invoke")
+```
+
+Invokes methods via reflection on runtime components. Supports nested member access (e.g., `onClick.Invoke`). More reliable than `simulate_input` for UI interactions and new Input System games.
 
 ### read_runtime_state — Observe the game
 

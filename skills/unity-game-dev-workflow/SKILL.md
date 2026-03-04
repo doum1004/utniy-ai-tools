@@ -1,5 +1,5 @@
 ---
-name: game-dev-workflow
+name: unity-game-dev-workflow
 description: Guide AI through iterative Unity game development — phased builds, playtesting loops, prefab workflows, UI Toolkit setup, and known pitfalls. Use when building a game from scratch or adding major features iteratively.
 ---
 
@@ -69,7 +69,7 @@ Add HUD and overlays after gameplay works. **Always use UI Toolkit** for new gam
 6. Play test → verify UI updates with game state
 ```
 
-See **ui-design** skill for full UXML/USS/controller examples and patterns.
+See **unity-ui-design** skill for full UXML/USS/controller examples and patterns.
 
 ### Phase 5: Visual Polish
 
@@ -100,7 +100,7 @@ Layer on complexity.
 ### Phase 7: Polish & Iteration
 
 ```
-1. Organize scene hierarchy (Editor script — see scene-management skill)
+1. Organize scene hierarchy (Editor script — see unity-scene-management skill)
 2. analyze_scene → check for missing refs, deep hierarchies
 3. Extended play test — multiple waves
 4. Performance check (triangle count, material count, draw calls)
@@ -152,7 +152,7 @@ UI Toolkit needs special handling because PanelSettings created at runtime are b
    - RegisterCallback<ClickEvent> for button interactions
 ```
 
-See **ui-design** skill for full code examples and common UI patterns (modal, scroll view, health bar).
+See **unity-ui-design** skill for full code examples and common UI patterns (modal, scroll view, health bar).
 
 ## Input System
 
@@ -200,7 +200,7 @@ void OnDisable() => _controls.Disable();
 - **Never use** `Input.GetAxis()`, `Input.GetMouseButton()`, `Input.mousePosition` with the new Input System
 - For UI: UI Toolkit works automatically; UGUI needs `InputSystemUIInputModule` on the EventSystem
 
-See **physics-gameplay** skill for full movement pattern examples with InputSystem.
+See **unity-physics-gameplay** skill for full movement pattern examples with InputSystem.
 
 ## Known Pitfalls & Workarounds
 
@@ -243,4 +243,4 @@ Use QA tools to interact and observe the game during Play mode:
 9. manage_scene(action="save")
 ```
 
-See **testing-debugging** skill for full QA test loop patterns and available input actions.
+See **unity-testing-debugging** skill for full QA test loop patterns and available input actions.

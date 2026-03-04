@@ -11,6 +11,7 @@ import { registerEditorTools } from "../../src/tools/editor";
 import { registerBatchTools } from "../../src/tools/batch";
 import { registerAnalysisTools } from "../../src/tools/analysis";
 import { registerPlayTestTools } from "../../src/tools/playtest";
+import { registerDevLogTools } from "../../src/tools/devlog";
 
 function createTrackingServer() {
     const registeredTools: string[] = [];
@@ -111,8 +112,16 @@ describe("Tool Registration", () => {
         const { server, registeredTools } = createTrackingServer();
         registerPlayTestTools(server, mockBridge);
         expect(registeredTools).toContain("simulate_input");
+        expect(registeredTools).toContain("execute_method");
         expect(registeredTools).toContain("read_runtime_state");
         expect(registeredTools).toContain("capture_gameplay");
-        expect(registeredTools).toHaveLength(3);
+        expect(registeredTools).toHaveLength(4);
+    });
+
+    test("registerDevLogTools registers manage_devlog", () => {
+        const { server, registeredTools } = createTrackingServer();
+        registerDevLogTools(server, mockBridge);
+        expect(registeredTools).toContain("manage_devlog");
+        expect(registeredTools).toHaveLength(1);
     });
 });

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -22,8 +21,8 @@ namespace UnityAITools.Editor.Tools
             switch (commandName)
             {
                 case "simulate_input":
-                    return ExecuteOnMainThread(commandName, paramsJson);
                 case "read_runtime_state":
+                case "execute_method":
                     return ExecuteOnMainThread(commandName, paramsJson);
                 case "capture_gameplay":
                     return ExecuteCaptureGameplay(paramsJson);
@@ -54,6 +53,9 @@ namespace UnityAITools.Editor.Tools
                             break;
                         case "read_runtime_state":
                             result = HandleReadRuntimeState(p);
+                            break;
+                        case "execute_method":
+                            result = HandleExecuteMethod(p);
                             break;
                         default:
                             result = new CommandResult { success = false, error = $"Unknown command: {commandName}" };
@@ -141,7 +143,7 @@ namespace UnityAITools.Editor.Tools
 
         private CommandResult SimulateMouseClick(ToolParams p)
         {
-            var pos = p.GetVector3("position");
+            var pos = p.GetFloatArray("position");
             var button = p.GetInt("button") ?? 0;
 
             if (pos == null || pos.Length < 2)
@@ -164,7 +166,7 @@ namespace UnityAITools.Editor.Tools
 
         private CommandResult SimulateMouseMove(ToolParams p)
         {
-            var pos = p.GetVector3("position");
+            var pos = p.GetFloatArray("position");
             if (pos == null || pos.Length < 2)
                 return new CommandResult { success = false, error = "position [x, y] is required for mouse_move" };
 
@@ -183,8 +185,8 @@ namespace UnityAITools.Editor.Tools
 
         private CommandResult SimulateMouseDrag(ToolParams p)
         {
-            var from = p.GetVector3("from");
-            var to = p.GetVector3("to");
+            var from = p.GetFloatArray("from");
+            var to = p.GetFloatArray("to");
             var button = p.GetInt("button") ?? 0;
 
             if (from == null || from.Length < 2)
@@ -317,6 +319,165 @@ namespace UnityAITools.Editor.Tools
 
             keyCode = KeyCode.None;
             return false;
+        }
+
+        // ──────────────────────────────────────────────────────────────
+        // execute_method
+        // ──────────────────────────────────────────────────────────────
+
+        private CommandResult HandleExecuteMethod(ToolParams p)
+        {
+            if (!EditorApplication.isPlaying)
+                return new CommandResult { success = false, error = "Unity is not in Play mode. Enter Play mode first." };
+
+            var targetPath = p.GetString("target");
+            var componentName = p.RequireString("component");
+            var methodName = p.RequireString("method");
+            var rawArgs = p.GetRaw("args") as List<object>;
+
+            // Handle UnityEvent invocation shorthand (e.g., "onClick.Invoke")
+            if (methodName.Contains("."))
+            {
+                var methodParts = methodName.Split(new[] { '.' }, 2);
+                return InvokeNestedMember(targetPath, componentName, methodParts[0], methodParts[1], rawArgs);
+            }
+
+            Component comp = null;
+            if (!string.IsNullOrEmpty(targetPath))
+            {
+                var go = GameObject.Find(targetPath);
+                if (go == null)
+                    return new CommandResult { success = false, error = $"GameObject not found: {targetPath}" };
+                comp = go.GetComponent(componentName);
+                if (comp == null)
+                    return new CommandResult { success = false, error = $"Component '{componentName}' not found on '{targetPath}'" };
+            }
+            else
+            {
+                var found = UnityEngine.Object.FindObjectsOfType<Component>();
+                comp = found.FirstOrDefault(c => c.GetType().Name == componentName);
+                if (comp == null)
+                    return new CommandResult { success = false, error = $"No active instance of '{componentName}' found in scene" };
+            }
+
+            return InvokeMethodOnComponent(comp, methodName, rawArgs);
+        }
+
+        private CommandResult InvokeMethodOnComponent(Component comp, string methodName, List<object> rawArgs)
+        {
+            var type = comp.GetType();
+            var methods = type.GetMethods(
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance);
+
+            var candidates = methods.Where(m => m.Name == methodName).ToArray();
+            if (candidates.Length == 0)
+                return new CommandResult { success = false, error = $"Method '{methodName}' not found on {type.Name}" };
+
+            var argCount = rawArgs?.Count ?? 0;
+            var method = candidates.FirstOrDefault(m => m.GetParameters().Length == argCount)
+                         ?? candidates[0];
+
+            var parameters = method.GetParameters();
+            var convertedArgs = new object[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (rawArgs != null && i < rawArgs.Count)
+                    convertedArgs[i] = ConvertArg(rawArgs[i], parameters[i].ParameterType);
+                else if (parameters[i].HasDefaultValue)
+                    convertedArgs[i] = parameters[i].DefaultValue;
+                else
+                    return new CommandResult { success = false, error = $"Missing argument '{parameters[i].Name}' for {type.Name}.{methodName}" };
+            }
+
+            try
+            {
+                var result = method.Invoke(comp, convertedArgs);
+                var data = new Dictionary<string, object>
+                {
+                    { "component", type.Name },
+                    { "method", methodName },
+                    { "target", comp.gameObject.name }
+                };
+                if (result != null)
+                    data["return_value"] = SerializeValue(result);
+                return new CommandResult { success = true, data = data };
+            }
+            catch (System.Reflection.TargetInvocationException tie)
+            {
+                return new CommandResult { success = false, error = $"{type.Name}.{methodName} threw: {tie.InnerException?.Message ?? tie.Message}" };
+            }
+        }
+
+        private CommandResult InvokeNestedMember(string targetPath, string componentName, string fieldName, string memberName, List<object> rawArgs)
+        {
+            Component comp = null;
+            if (!string.IsNullOrEmpty(targetPath))
+            {
+                var go = GameObject.Find(targetPath);
+                if (go == null)
+                    return new CommandResult { success = false, error = $"GameObject not found: {targetPath}" };
+                comp = go.GetComponent(componentName);
+            }
+            else
+            {
+                var found = UnityEngine.Object.FindObjectsOfType<Component>();
+                comp = found.FirstOrDefault(c => c.GetType().Name == componentName);
+            }
+
+            if (comp == null)
+                return new CommandResult { success = false, error = $"Component '{componentName}' not found" };
+
+            var fieldValue = GetFieldOrProperty(comp, fieldName);
+            if (fieldValue == null)
+                return new CommandResult { success = false, error = $"Field '{fieldName}' is null or not found on {componentName}" };
+
+            var fieldType = fieldValue.GetType();
+            var method = fieldType.GetMethod(memberName,
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (method == null)
+                return new CommandResult { success = false, error = $"Method '{memberName}' not found on {fieldType.Name}" };
+
+            var parameters = method.GetParameters();
+            var convertedArgs = new object[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (rawArgs != null && i < rawArgs.Count)
+                    convertedArgs[i] = ConvertArg(rawArgs[i], parameters[i].ParameterType);
+                else if (parameters[i].HasDefaultValue)
+                    convertedArgs[i] = parameters[i].DefaultValue;
+            }
+
+            try
+            {
+                var result = method.Invoke(fieldValue, convertedArgs);
+                var data = new Dictionary<string, object>
+                {
+                    { "component", componentName },
+                    { "field", fieldName },
+                    { "method", memberName },
+                    { "target", comp.gameObject.name }
+                };
+                if (result != null)
+                    data["return_value"] = SerializeValue(result);
+                return new CommandResult { success = true, data = data };
+            }
+            catch (System.Reflection.TargetInvocationException tie)
+            {
+                return new CommandResult { success = false, error = $"{fieldType.Name}.{memberName} threw: {tie.InnerException?.Message ?? tie.Message}" };
+            }
+        }
+
+        private static object ConvertArg(object value, Type targetType)
+        {
+            if (targetType == typeof(string)) return value?.ToString();
+            if (targetType == typeof(int)) return Convert.ToInt32(value);
+            if (targetType == typeof(float)) return Convert.ToSingle(value);
+            if (targetType == typeof(double)) return Convert.ToDouble(value);
+            if (targetType == typeof(bool)) return Convert.ToBoolean(value);
+            if (targetType == typeof(long)) return Convert.ToInt64(value);
+            if (targetType.IsEnum && value is string s) return Enum.Parse(targetType, s, true);
+            return Convert.ChangeType(value, targetType);
         }
 
         // ──────────────────────────────────────────────────────────────
@@ -501,7 +662,7 @@ namespace UnityAITools.Editor.Tools
         // capture_gameplay
         // ──────────────────────────────────────────────────────────────
 
-        private async Task<CommandResult> ExecuteCaptureGameplay(string paramsJson)
+        private Task<CommandResult> ExecuteCaptureGameplay(string paramsJson)
         {
             var p = new ToolParams(paramsJson);
             var duration = p.GetFloat("duration") ?? 5f;
@@ -510,102 +671,92 @@ namespace UnityAITools.Editor.Tools
             var includeState = p.GetBool("include_state") ?? true;
 
             if (!EditorApplication.isPlaying)
-                return new CommandResult { success = false, error = "Unity is not in Play mode. Enter Play mode first." };
+                return Task.FromResult(new CommandResult { success = false, error = "Unity is not in Play mode. Enter Play mode first." });
 
             var frameCount = Mathf.Max(1, Mathf.FloorToInt(duration / intervalSec));
             var captures = new List<Dictionary<string, object>>();
+            var tcs = new TaskCompletionSource<CommandResult>();
             var startTime = EditorApplication.timeSinceStartup;
+            var nextCaptureIndex = 0;
 
-            for (int i = 0; i < frameCount; i++)
+            EditorApplication.CallbackFunction tick = null;
+            tick = () =>
             {
-                if (!EditorApplication.isPlaying) break;
-
-                // Wait for interval
-                if (i > 0)
-                {
-                    var targetTime = startTime + (i * intervalSec);
-                    while (EditorApplication.timeSinceStartup < targetTime && EditorApplication.isPlaying)
-                    {
-                        await Task.Delay(50);
-                    }
-                }
-
-                // Capture on main thread
-                var capture = await CaptureFrameOnMainThread(maxResolution, includeState, i);
-                captures.Add(capture);
-            }
-
-            return new CommandResult
-            {
-                success = true,
-                data = new Dictionary<string, object>
-                {
-                    { "captures", captures },
-                    { "frame_count", captures.Count },
-                    { "duration", duration },
-                    { "interval", intervalSec }
-                }
-            };
-        }
-
-        private Task<Dictionary<string, object>> CaptureFrameOnMainThread(int maxResolution, bool includeState, int index)
-        {
-            var tcs = new TaskCompletionSource<Dictionary<string, object>>();
-            EditorApplication.CallbackFunction callback = null;
-            callback = () =>
-            {
-                EditorApplication.update -= callback;
                 try
                 {
-                    var frame = new Dictionary<string, object>
+                    if (!EditorApplication.isPlaying || nextCaptureIndex >= frameCount)
                     {
-                        { "index", index },
-                        { "time", EditorApplication.isPlaying ? Time.time : 0f }
-                    };
-
-                    // Capture screenshot
-                    Camera camera = Camera.main;
-                    if (camera == null)
-                    {
-                        var cameras = UnityEngine.Object.FindObjectsOfType<Camera>();
-                        camera = cameras.FirstOrDefault();
-                    }
-
-                    if (camera != null)
-                    {
-                        var screenshotData = CaptureFromCamera(camera, maxResolution);
-                        if (screenshotData != null)
+                        EditorApplication.update -= tick;
+                        tcs.SetResult(new CommandResult
                         {
-                            frame["image_base64"] = screenshotData["image_base64"];
-                            frame["width"] = screenshotData["width"];
-                            frame["height"] = screenshotData["height"];
-                        }
+                            success = true,
+                            data = new Dictionary<string, object>
+                            {
+                                { "captures", captures },
+                                { "frame_count", captures.Count },
+                                { "duration", duration },
+                                { "interval", intervalSec }
+                            }
+                        });
+                        return;
                     }
 
-                    if (includeState)
-                    {
-                        frame["fps"] = Time.deltaTime > 0 ? Mathf.Round(1f / Time.deltaTime) : 0f;
-                        frame["frame_count"] = Time.frameCount;
+                    var targetTime = startTime + (nextCaptureIndex * intervalSec);
+                    if (EditorApplication.timeSinceStartup < targetTime)
+                        return;
 
-                        var logs = ConsoleLogCapture.Instance.GetLogs(
-                            new List<string> { "error", "warning" }, 5, false, "summary");
-                        if (logs.Count > 0)
-                            frame["recent_errors"] = logs;
-                    }
-
-                    tcs.SetResult(frame);
+                    var frame = CaptureOneFrame(maxResolution, includeState, nextCaptureIndex);
+                    captures.Add(frame);
+                    nextCaptureIndex++;
                 }
                 catch (Exception ex)
                 {
-                    tcs.SetResult(new Dictionary<string, object>
-                    {
-                        { "index", index },
-                        { "error", ex.Message }
-                    });
+                    EditorApplication.update -= tick;
+                    tcs.SetResult(new CommandResult { success = false, error = ex.Message });
                 }
             };
-            EditorApplication.update += callback;
+            EditorApplication.update += tick;
             return tcs.Task;
+        }
+
+        private Dictionary<string, object> CaptureOneFrame(int maxResolution, bool includeState, int index)
+        {
+            var frame = new Dictionary<string, object>
+            {
+                { "index", index },
+                { "time", EditorApplication.isPlaying ? Time.time : 0f }
+            };
+
+            Camera camera = Camera.main;
+            if (camera == null)
+            {
+                var cameras = UnityEngine.Object.FindObjectsOfType<Camera>();
+                camera = cameras.FirstOrDefault();
+            }
+
+            if (camera != null)
+            {
+                var screenshotData = CaptureFromCamera(camera, maxResolution);
+                if (screenshotData != null)
+                {
+                    frame["image_base64"] = screenshotData["image_base64"];
+                    frame["width"] = screenshotData["width"];
+                    frame["height"] = screenshotData["height"];
+                }
+            }
+
+            if (includeState)
+            {
+                frame["fps"] = Time.deltaTime > 0 ? Mathf.Round(1f / Time.deltaTime) : 0f;
+                frame["frame_count"] = Time.frameCount;
+
+                var logs = ConsoleLogCapture.Instance.GetLogs(
+                    new List<string> { "error", "warning" }, 5, false, "summary");
+                if (logs.Count > 0)
+                    frame["recent_errors"] = logs;
+            }
+
+            return frame;
         }
 
         private static Dictionary<string, object> CaptureFromCamera(Camera camera, int maxResolution)

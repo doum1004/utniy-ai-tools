@@ -1,5 +1,5 @@
 ---
-name: unity-ai-tools
+name: unity-mcp-tools
 description: Orchestrate Unity Editor via MCP tools and resources. Use when working with Unity projects through Unity AI Tools — creating/modifying GameObjects, editing scripts, managing scenes, or any Unity Editor automation.
 ---
 
@@ -12,10 +12,12 @@ This skill helps you effectively use the Unity Editor through MCP tools and reso
 **Always read relevant resources before using tools.** This prevents errors and provides context.
 
 ```
-1. Check editor state     → unity://editor/state
-2. Understand the scene   → find_gameobjects or manage_scene(action="get_hierarchy")
-3. Take action            → manage_gameobject, create_script, etc.
-4. Verify results         → read_console, manage_scene(action="screenshot")
+1. Read dev log           → unity://project/devlog (understand what's been done)
+2. Check editor state     → unity://editor/state
+3. Understand the scene   → find_gameobjects or manage_scene(action="get_hierarchy")
+4. Take action            → manage_gameobject, create_script, etc.
+5. Verify results         → read_console, manage_scene(action="screenshot")
+6. Log progress           → manage_devlog (record what was done and why)
 ```
 
 ## Critical Best Practices
@@ -76,6 +78,7 @@ Read `unity://editor/menu-items` to find available menu paths before calling `ex
 | `analyze_scene` | Scene stats, counts, missing refs, quality review |
 | `inspect_gameobject` | Deep object inspection — issues, refs, prefab status |
 | `get_project_settings` | Read physics, quality, rendering, player settings |
+| `manage_devlog` | Dev journal — log plans, decisions, milestones, issues, iterations |
 
 ## Available Resources
 
@@ -88,6 +91,7 @@ Read `unity://editor/menu-items` to find available menu paths before calling `ex
 | Instances | `unity://instances` |
 | Selection | `unity://editor/selection` |
 | Menu items | `unity://editor/menu-items` |
+| Dev log | `unity://project/devlog` |
 
 ## Common Workflows
 

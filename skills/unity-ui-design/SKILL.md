@@ -1,5 +1,5 @@
 ---
-name: ui-design
+name: unity-ui-design
 description: Guide AI through Unity UI design — UI Toolkit (preferred), UGUI canvas, InputSystem integration, responsive design, and common UI patterns. Use when building HUD, menus, or interactive UI elements.
 ---
 

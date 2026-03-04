@@ -13,3 +13,4 @@ export { registerEditorTools } from "./editor";
 export { registerBatchTools } from "./batch";
 export { registerAnalysisTools } from "./analysis";
 export { registerPlayTestTools } from "./playtest";
+export { registerDevLogTools } from "./devlog";

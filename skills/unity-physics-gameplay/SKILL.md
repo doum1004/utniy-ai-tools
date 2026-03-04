@@ -1,5 +1,5 @@
 ---
-name: physics-gameplay
+name: unity-physics-gameplay
 description: Guide AI through Unity physics setup, rigidbody configuration, collision detection, InputSystem-based movement patterns, and common gameplay mechanics. Use when implementing physics-based movement, collision systems, or gameplay interactions.
 ---
 

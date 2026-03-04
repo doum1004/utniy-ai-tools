@@ -1,5 +1,5 @@
 ---
-name: game-architecture
+name: unity-game-architecture
 description: Guide AI through Unity script architecture, component design patterns, prefab strategy, and ScriptableObject usage. Use when creating or reviewing C# scripts and project structure.
 ---
 

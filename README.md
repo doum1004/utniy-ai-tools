@@ -56,7 +56,7 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 
 ## Available Tools
 
-`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings`
+`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings` · `manage_devlog`
 
 ## Resources
 
@@ -69,19 +69,23 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 | `unity://project/tags` | Available project tags |
 | `unity://project/layers` | Available project layers |
 | `unity://editor/menu-items` | Available Editor menu items |
+| `unity://project/devlog` | Development journal — plans, decisions, iteration history |
 
 ## AI Skills
 
 | Skill | Purpose |
 |-------|---------|
-| `unity-ai` | Core orchestrator — tool usage patterns and workflows |
-| `level-design` | Scene composition, lighting, camera setup, feedback loops |
-| `game-architecture` | Script patterns, prefab strategy, ScriptableObjects |
-| `optimization` | Performance review, batching, pooling, profiling workflows |
-| `ui-design` | Canvas setup, anchoring, layout, UGUI vs UI Toolkit |
-| `testing-debugging` | Writing tests, console analysis, debugging workflows |
-| `physics-gameplay` | Rigidbody, collisions, raycasting, movement patterns |
-| `2d-game-development` | Sprites, tilemaps, sorting, 2D camera, lighting, animation |
+| `unity-mcp-tools` | Core orchestrator — tool usage patterns and workflows |
+| `unity-level-design` | Scene composition, lighting, camera setup, feedback loops |
+| `unity-game-architecture` | Script patterns, prefab strategy, ScriptableObjects |
+| `unity-optimization` | Performance review, batching, pooling, profiling workflows |
+| `unity-ui-design` | Canvas setup, anchoring, layout, UGUI vs UI Toolkit |
+| `unity-testing-debugging` | Writing tests, console analysis, debugging workflows |
+| `unity-physics-gameplay` | Rigidbody, collisions, raycasting, movement patterns |
+| `unity-2d-game-development` | Sprites, tilemaps, sorting, 2D camera, lighting, animation |
+| `unity-game-dev-workflow` | Iterative build phases, prefab workflows, input system patterns |
+| `unity-scene-management` | Scene hierarchy, loading, and organization |
+| `unity-dev-planning` | Persistent development journal — plans, iterations, cross-session context |
 
 ## Testing
 

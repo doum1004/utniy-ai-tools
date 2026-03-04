@@ -1,3 +1,8 @@
+---
+name: unity-2d-game-development
+description: Guide for building 2D games in Unity — sprites, tilemaps, movement, sorting, camera, lighting, and animation. Use when working on 2D Unity projects.
+---
+
 # 2D Game Development Skill
 
 Guide for building 2D games in Unity — sprites, tilemaps, movement, sorting, camera, lighting, and animation.
