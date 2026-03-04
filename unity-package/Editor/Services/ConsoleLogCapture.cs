@@ -86,7 +86,8 @@ namespace UnityAITools.Editor.Services
                     var dict = new Dictionary<string, object>
                     {
                         { "type", entry.type },
-                        { "timestamp", entry.timestamp }
+                        { "timestamp", entry.timestamp },
+                        { "source", "runtime_capture" }
                     };
 
                     dict["message"] = entry.message;

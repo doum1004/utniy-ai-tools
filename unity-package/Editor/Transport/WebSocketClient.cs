@@ -101,6 +101,23 @@ namespace UnityAITools.Editor.Transport
         }
 
         /// <summary>
+        /// Synchronous immediate teardown — used before domain reload.
+        /// ClientWebSocket.Abort() is non-blocking and instantly kills the socket,
+        /// which stops the receive loop and keep-alive threads so they don't block
+        /// Unity's assembly reload. The server will see a disconnect; after reload,
+        /// McpBackgroundService auto-reconnects via SessionState.
+        /// </summary>
+        public void AbortImmediate()
+        {
+            try { _cts?.Cancel(); } catch { /* ignore */ }
+            try { _ws?.Abort(); } catch { /* ignore */ }
+            try { _ws?.Dispose(); } catch { /* ignore */ }
+            _ws = null;
+            _sessionId = null;
+            _keepAliveTask = null;
+        }
+
+        /// <summary>
         /// Send a JSON message to the server.
         /// </summary>
         public async Task SendAsync(string json)
@@ -278,24 +295,53 @@ namespace UnityAITools.Editor.Transport
         {
             // We use a simple JSON parser here since JsonUtility can't handle
             // Dictionary<string, object> directly. We parse the raw JSON.
+            var commandId = TryExtractCommandId(json);
             try
             {
                 var result = await _dispatcher.DispatchAsync(json);
-                // Extract command ID from the JSON
-                var idStart = json.IndexOf("\"id\"", StringComparison.Ordinal);
-                if (idStart >= 0)
-                {
-                    var colonPos = json.IndexOf(':', idStart);
-                    var quoteStart = json.IndexOf('"', colonPos + 1);
-                    var quoteEnd = json.IndexOf('"', quoteStart + 1);
-                    var commandId = json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
+                if (!string.IsNullOrEmpty(commandId))
                     await SendCommandResultAsync(commandId, result);
-                }
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[UnityAITools] Command execution error: {ex}");
+                if (!string.IsNullOrEmpty(commandId))
+                {
+                    await SendCommandResultAsync(commandId, new CommandResult
+                    {
+                        success = false,
+                        error = $"Command execution error: {ex.Message}"
+                    });
+                }
             }
+        }
+
+        private static string TryExtractCommandId(string json)
+        {
+            try
+            {
+                var parsed = MiniJson.Deserialize(json) as Dictionary<string, object>;
+                if (parsed != null && parsed.TryGetValue("id", out var id) && id != null)
+                    return id.ToString();
+            }
+            catch
+            {
+                // Fallback to string parsing below
+            }
+
+            var idStart = json.IndexOf("\"id\"", StringComparison.Ordinal);
+            if (idStart < 0) return null;
+
+            var colonPos = json.IndexOf(':', idStart);
+            if (colonPos < 0) return null;
+
+            var quoteStart = json.IndexOf('"', colonPos + 1);
+            if (quoteStart < 0) return null;
+
+            var quoteEnd = json.IndexOf('"', quoteStart + 1);
+            if (quoteEnd < 0) return null;
+
+            return json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
         }
 
         private async void HandlePing()

@@ -100,6 +100,32 @@ namespace UnityAITools.Editor.Tests.Transport
         }
 
         [Test]
+        public async Task DispatchAsync_WithNullParams_UsesEmptyObject()
+        {
+            var handler = new MockToolHandler(new CommandResult { success = true });
+            _dispatcher.RegisterHandler("test", handler);
+
+            var json = "{\"name\":\"test\",\"params\":null}";
+            var result = await _dispatcher.DispatchAsync(json);
+
+            Assert.IsTrue(result.success);
+            Assert.AreEqual("{}", handler.LastParamsJson);
+        }
+
+        [Test]
+        public async Task DispatchAsync_WithArrayParams_UsesEmptyObject()
+        {
+            var handler = new MockToolHandler(new CommandResult { success = true });
+            _dispatcher.RegisterHandler("test", handler);
+
+            var json = "{\"name\":\"test\",\"params\":[1,2,3]}";
+            var result = await _dispatcher.DispatchAsync(json);
+
+            Assert.IsTrue(result.success);
+            Assert.AreEqual("{}", handler.LastParamsJson);
+        }
+
+        [Test]
         public void RegisterHandler_OverwritesPreviousHandler()
         {
             var handler1 = new MockToolHandler(new CommandResult { success = true, data = "first" });

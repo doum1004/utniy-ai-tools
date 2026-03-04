@@ -68,6 +68,22 @@ namespace UnityAITools.Editor.Tools
                 case "get_selection":
                     return GetEditorSelection();
 
+                case "focus":
+                    FocusEditorWindow();
+                    return new CommandResult
+                    {
+                        success = true,
+                        data = new Dictionary<string, object>
+                        {
+                            { "action", "focus" },
+                            { "is_application_active", UnityEditorInternal.InternalEditorUtility.isApplicationActive }
+                        }
+                    };
+
+                case "step":
+                    EditorApplication.Step();
+                    return new CommandResult { success = true, data = new Dictionary<string, object> { { "action", "step" } } };
+
                 case "select":
                     var target = p.GetString("target");
                     if (!string.IsNullOrEmpty(target))
@@ -105,19 +121,65 @@ namespace UnityAITools.Editor.Tools
                     { "count", logs.Count },
                     { "is_compiling", EditorApplication.isCompiling },
                     { "is_playing", EditorApplication.isPlaying },
-                    { "editor_console_available", EditorConsoleReader.IsAvailable }
+                    { "editor_console_available", EditorConsoleReader.IsAvailable },
+                    { "editor_console_diagnostics", EditorConsoleReader.GetDiagnostics() }
                 }
             };
         }
 
         private CommandResult HandleRefreshUnity(ToolParams p)
         {
-            AssetDatabase.Refresh();
-            return new CommandResult
+            var mode = p.GetString("mode", "normal");
+            var requestCompile = p.GetString("compile", "request") == "request";
+
+            FocusEditorWindow();
+
+            var importOptions = mode == "force"
+                ? ImportAssetOptions.ForceUpdate
+                : ImportAssetOptions.Default;
+
+            AssetDatabase.Refresh(importOptions);
+
+            if (requestCompile)
             {
-                success = true,
-                data = new Dictionary<string, object> { { "refreshed", true } }
+                AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            }
+
+            var data = new Dictionary<string, object>
+            {
+                { "refreshed", true },
+                { "is_compiling", EditorApplication.isCompiling },
+                { "focus_requested", true }
             };
+
+            return new CommandResult { success = true, data = data };
+        }
+
+        /// <summary>
+        /// Brings the Unity Editor to the OS foreground by focusing a visible EditorWindow.
+        /// Solves the problem where Unity in the background doesn't process domain reload.
+        /// </summary>
+        private static void FocusEditorWindow()
+        {
+            try
+            {
+                var sceneView = SceneView.lastActiveSceneView;
+                if (sceneView != null)
+                {
+                    sceneView.Focus();
+                    return;
+                }
+
+                EditorWindow.FocusWindowIfItsOpen(typeof(SceneView));
+            }
+            catch
+            {
+                // Best-effort — if focus fails, the refresh still runs
+            }
+            finally
+            {
+                UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+            }
         }
 
         private CommandResult HandleExecuteMenuItem(ToolParams p)

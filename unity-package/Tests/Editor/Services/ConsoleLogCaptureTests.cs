@@ -81,6 +81,30 @@ namespace UnityAITools.Editor.Tests.Services
         }
 
         [Test]
+        public void GetLogs_TypeFilterErrors_ReturnsRecentClientErrors()
+        {
+            var marker = "read_console_regression_" + System.Guid.NewGuid().ToString("N");
+            Debug.LogError(marker + "_1");
+            Debug.LogError(marker + "_2");
+            Debug.LogError(marker + "_3");
+            Debug.LogError(marker + "_4");
+
+            var types = new List<string> { "error" };
+            var logs = _capture.GetLogs(types: types, count: 200);
+
+            var matching = 0;
+            foreach (var entry in logs)
+            {
+                var message = entry.ContainsKey("message") ? entry["message"] as string : null;
+                if (!string.IsNullOrEmpty(message) && message.Contains(marker))
+                    matching++;
+            }
+
+            Assert.GreaterOrEqual(matching, 4,
+                "Expected to retrieve all recent marker errors from read_console path");
+        }
+
+        [Test]
         public void GetLogs_TypeFilterWarnings_OnlyReturnsWarnings()
         {
             Debug.LogWarning("warning msg");
