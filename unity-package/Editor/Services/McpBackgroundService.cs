@@ -137,22 +137,25 @@ namespace UnityAITools.Editor.Services
                 _isConnecting = false;
                 _reconnectAttempt = 0;
                 _wasConnected = true;
-                SessionState.SetBool(KeyWasConnected, true);
-                SessionState.SetString(KeyServerUrl, _lastServerUrl);
-                EditorApplication.update += BackgroundTick;
+                // SessionState and EditorApplication require the main thread;
+                // the receive loop may fire this callback from a background thread.
+                EditorApplication.delayCall += () =>
+                {
+                    SessionState.SetBool(KeyWasConnected, true);
+                    SessionState.SetString(KeyServerUrl, _lastServerUrl);
+                    EditorApplication.update += BackgroundTick;
+                };
                 NotifyStatusChanged();
             };
             
             Client.OnDisconnected += () => { 
                 _isConnecting = false;
-                EditorApplication.update -= BackgroundTick;
+                EditorApplication.delayCall += () => EditorApplication.update -= BackgroundTick;
                 NotifyStatusChanged(); 
                 
                 if (!_isDisconnectingIntentional)
                 {
                     Debug.LogWarning("[UnityAITools] Unintentional disconnect detected, will auto-reconnect");
-                    // Use background task instead of EditorApplication.delayCall so reconnection
-                    // works even when Unity is unfocused or in the middle of a domain reload.
                     _ = Task.Run(() => TryReconnectingAsync());
                 }
                 else
