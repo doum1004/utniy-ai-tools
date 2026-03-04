@@ -226,3 +226,21 @@ See **physics-gameplay** skill for full movement pattern examples with InputSyst
 6. manage_editor(action="stop")
 7. manage_scene(action="save")
 ```
+
+### Extended Play-Test Verification (After Phase 2+)
+
+Use QA tools to interact and observe the game during Play mode:
+
+```
+1. refresh_unity(mode="force", compile="request", wait_for_ready=true)
+2. read_console(types=["error"], count=20) → zero compile errors
+3. manage_editor(action="play")
+4. simulate_input(action="key_press", key="W", duration=3.0) → test movement
+5. capture_gameplay(duration=5, interval=1.0) → watch game for 5 seconds
+6. read_runtime_state(target="Player") → verify player position changed
+7. read_console(types=["error"], count=10) → zero runtime errors
+8. manage_editor(action="stop")
+9. manage_scene(action="save")
+```
+
+See **testing-debugging** skill for full QA test loop patterns and available input actions.

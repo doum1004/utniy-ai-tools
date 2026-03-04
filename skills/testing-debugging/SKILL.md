@@ -126,6 +126,53 @@ public class PlayerMovementTests
 - Always clean up created GameObjects in teardown or end of test
 - Use `yield return null` to wait one frame, `yield return new WaitForFixedUpdate()` for physics
 
+## Play-Testing via MCP (LLM as QA Tester)
+
+Three tools let AI agents interact with and observe the game at runtime:
+
+### simulate_input — Interact with the game
+
+```
+simulate_input(action="key_press", key="W", duration=2.0)   → hold W for 2 seconds
+simulate_input(action="key_press", key="Space")              → tap space
+simulate_input(action="mouse_click", position=[400, 300])    → click at screen coords
+simulate_input(action="mouse_drag", from=[100, 100], to=[500, 300])
+```
+
+Key names: `W`, `A`, `S`, `D`, `Space`, `Return`, `Escape`, `LeftShift`, `F1`-`F15`, `UpArrow`, etc.
+Requires Play mode — call `manage_editor(action="play")` first.
+
+### read_runtime_state — Observe the game
+
+```
+read_runtime_state()                                          → FPS, time, object counts
+read_runtime_state(target="Player")                           → position, components, physics
+read_runtime_state(target="Player", fields=["Rigidbody.velocity", "health"])  → specific fields
+```
+
+Returns live FPS, frame count, active scene. When targeting a GameObject: position, rotation, scale, component list. Rigidbody velocity/angular velocity and Animator state are auto-included.
+
+### capture_gameplay — Watch the game over time
+
+```
+capture_gameplay(duration=5, interval=1.0)     → 5 screenshots, 1 per second
+capture_gameplay(duration=10, interval=2.0, max_resolution=320)  → smaller images, longer capture
+```
+
+Returns a sequence of screenshots with timestamps, FPS, and any console errors at each frame.
+
+### QA Test Loop
+
+```
+1. manage_editor(action="play")
+2. simulate_input(action="key_press", key="W", duration=3.0)   → walk forward
+3. capture_gameplay(duration=3, interval=1.0)                   → observe movement
+4. read_runtime_state(target="Player")                          → check position changed
+5. read_console(types=["error"])                                → check for errors
+6. manage_editor(action="stop")
+→ "Player moved from (0,0,0) to (0,0,8.5). No errors. Movement looks correct."
+```
+
 ## Debugging Workflow
 
 ### Standard Debug Loop
