@@ -30,9 +30,12 @@ namespace UnityAITools.Editor.Windows
         private bool _showReadConsoleDebug;
         private string _readConsoleTestResponse = "No test run yet.";
 
+        // Error display
+        private Label _lastErrorLabel;
+        private string _lastError = "";
+
         // Server process UI
         private Foldout _serverFoldout;
-        private bool _showServerFoldout;
         private Label _serverStatusLabel;
         private TextField _serverExecutableField;
         private Button _startServerButton;
@@ -40,15 +43,21 @@ namespace UnityAITools.Editor.Windows
 
         // Connection UI
         private Foldout _connectionFoldout;
-        private bool _showConnectionFoldout;
         private Label _statusLabel;
         private Label _sessionValueLabel;
         private TextField _serverUrlField;
         private Button _connectButton;
         private Button _disconnectButton;
         private Foldout _toolsFoldout;
-        private bool _showToolsFoldout;
         private Button _annotateButton;
+        private TextField _snapshotNoteField;
+        private Button _snapshotCreateButton;
+        private Button _snapshotRevertButton;
+        private Label _snapshotStatusLabel;
+        // Preferences UI
+        private Foldout _preferencesFoldout;
+        private Toggle _autoConnectToggle;
+
         private Foldout _debugFoldout;
         private TextField _typesField;
         private IntegerField _countField;
@@ -57,7 +66,7 @@ namespace UnityAITools.Editor.Windows
         private Button _runReadConsoleTestButton;
         private TextField _readConsoleResponseField;
 
-        [MenuItem("Window/Unity AI Tools")]
+        [MenuItem("Window/Unity AI Tools/Control Panel")]
         public static void ShowWindow()
         {
             var window = GetWindow<McpControlWindow>();
@@ -72,12 +81,18 @@ namespace UnityAITools.Editor.Windows
             if (McpBackgroundService.Instance != null)
             {
                 McpBackgroundService.Instance.OnStatusChanged += OnExternalStateChanged;
+                if (McpBackgroundService.Instance.Client != null)
+                    McpBackgroundService.Instance.Client.OnError += OnConnectionError;
             }
             else
             {
                 EditorApplication.delayCall += () => {
                     if (McpBackgroundService.Instance != null)
+                    {
                         McpBackgroundService.Instance.OnStatusChanged += OnExternalStateChanged;
+                        if (McpBackgroundService.Instance.Client != null)
+                            McpBackgroundService.Instance.Client.OnError += OnConnectionError;
+                    }
                 };
             }
 
@@ -101,12 +116,20 @@ namespace UnityAITools.Editor.Windows
             if (McpBackgroundService.Instance != null)
             {
                 McpBackgroundService.Instance.OnStatusChanged -= OnExternalStateChanged;
+                if (McpBackgroundService.Instance.Client != null)
+                    McpBackgroundService.Instance.Client.OnError -= OnConnectionError;
             }
             if (ServerProcessManager.Instance != null)
             {
                 ServerProcessManager.Instance.OnStatusChanged -= OnExternalStateChanged;
             }
             AnnotationSession.Instance.OnChanged -= OnExternalStateChanged;
+        }
+
+        private void OnConnectionError(string error)
+        {
+            _lastError = error;
+            RefreshUi();
         }
 
         public void CreateGUI()
@@ -161,10 +184,13 @@ namespace UnityAITools.Editor.Windows
 
         private void BindElements()
         {
+            // Error label
+            _lastErrorLabel = rootVisualElement.Q<Label>("last-error-label");
+
             // Server process elements
             _serverFoldout = rootVisualElement.Q<Foldout>("server-foldout");
             if (_serverFoldout != null)
-                _serverFoldout.value = _showServerFoldout;
+                _serverFoldout.value = EditorPrefs.GetBool("UnityAITools_Foldout_Server", false);
             _serverStatusLabel = rootVisualElement.Q<Label>("server-status-label");
             _serverExecutableField = rootVisualElement.Q<TextField>("server-executable-field");
             _startServerButton = rootVisualElement.Q<Button>("start-server-button");
@@ -173,7 +199,7 @@ namespace UnityAITools.Editor.Windows
             // Connection elements
             _connectionFoldout = rootVisualElement.Q<Foldout>("connection-foldout");
             if (_connectionFoldout != null)
-                _connectionFoldout.value = _showConnectionFoldout;
+                _connectionFoldout.value = EditorPrefs.GetBool("UnityAITools_Foldout_Connection", false);
             _statusLabel = rootVisualElement.Q<Label>("status-label");
             _sessionValueLabel = rootVisualElement.Q<Label>("session-value-label");
             _serverUrlField = rootVisualElement.Q<TextField>("server-url-field");
@@ -181,8 +207,20 @@ namespace UnityAITools.Editor.Windows
             _disconnectButton = rootVisualElement.Q<Button>("disconnect-button");
             _toolsFoldout = rootVisualElement.Q<Foldout>("tools-foldout");
             if (_toolsFoldout != null)
-                _toolsFoldout.value = _showToolsFoldout;
+                _toolsFoldout.value = EditorPrefs.GetBool("UnityAITools_Foldout_Tools", false);
             _annotateButton = rootVisualElement.Q<Button>("annotate-button");
+            _snapshotNoteField = rootVisualElement.Q<TextField>("snapshot-note-field");
+            _snapshotCreateButton = rootVisualElement.Q<Button>("snapshot-create-button");
+            _snapshotRevertButton = rootVisualElement.Q<Button>("snapshot-revert-button");
+            _snapshotStatusLabel = rootVisualElement.Q<Label>("snapshot-status-label");
+            // Preferences elements
+            _preferencesFoldout = rootVisualElement.Q<Foldout>("preferences-foldout");
+            if (_preferencesFoldout != null)
+                _preferencesFoldout.value = EditorPrefs.GetBool("UnityAITools_Foldout_Preferences", false);
+            _autoConnectToggle = rootVisualElement.Q<Toggle>("auto-connect-toggle");
+            if (_autoConnectToggle != null)
+                _autoConnectToggle.value = McpBackgroundService.AutoConnect;
+
             _debugFoldout = rootVisualElement.Q<Foldout>("debug-foldout");
             _typesField = rootVisualElement.Q<TextField>("types-field");
             _countField = rootVisualElement.Q<IntegerField>("count-field");
@@ -226,7 +264,7 @@ namespace UnityAITools.Editor.Windows
         {
             // Server process callbacks
             if (_serverFoldout != null)
-                _serverFoldout.RegisterValueChangedCallback(evt => _showServerFoldout = evt.newValue);
+                _serverFoldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool("UnityAITools_Foldout_Server", evt.newValue));
             if (_serverExecutableField != null)
             {
                 _serverExecutableField.RegisterValueChangedCallback(evt =>
@@ -241,7 +279,7 @@ namespace UnityAITools.Editor.Windows
 
             // Connection callbacks
             if (_connectionFoldout != null)
-                _connectionFoldout.RegisterValueChangedCallback(evt => _showConnectionFoldout = evt.newValue);
+                _connectionFoldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool("UnityAITools_Foldout_Connection", evt.newValue));
             if (_serverUrlField != null)
             {
                 _serverUrlField.RegisterValueChangedCallback(evt =>
@@ -256,9 +294,19 @@ namespace UnityAITools.Editor.Windows
             if (_disconnectButton != null)
                 _disconnectButton.clicked += OnDisconnectClicked;
             if (_toolsFoldout != null)
-                _toolsFoldout.RegisterValueChangedCallback(evt => _showToolsFoldout = evt.newValue);
+                _toolsFoldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool("UnityAITools_Foldout_Tools", evt.newValue));
             if (_annotateButton != null)
                 _annotateButton.clicked += OnAnnotateClicked;
+            if (_snapshotCreateButton != null)
+                _snapshotCreateButton.clicked += () => _ = OnSnapshotCreateClicked();
+            if (_snapshotRevertButton != null)
+                _snapshotRevertButton.clicked += () => _ = OnSnapshotRevertClicked();
+            // Preferences callbacks
+            if (_preferencesFoldout != null)
+                _preferencesFoldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool("UnityAITools_Foldout_Preferences", evt.newValue));
+            if (_autoConnectToggle != null)
+                _autoConnectToggle.RegisterValueChangedCallback(evt => McpBackgroundService.AutoConnect = evt.newValue);
+
             if (_debugFoldout != null)
                 _debugFoldout.RegisterValueChangedCallback(evt => _showReadConsoleDebug = evt.newValue);
             if (_typesField != null)
@@ -280,8 +328,31 @@ namespace UnityAITools.Editor.Windows
 
         private void RefreshUi()
         {
+            RefreshErrorUi();
             RefreshServerUi();
             RefreshConnectionUi();
+            RefreshSnapshotUi();
+        }
+
+        private void RefreshErrorUi()
+        {
+            if (_lastErrorLabel == null) return;
+
+            if (string.IsNullOrEmpty(_lastError))
+            {
+                _lastErrorLabel.text = "";
+                _lastErrorLabel.RemoveFromClassList("mcp-last-error--visible");
+            }
+            else
+            {
+                _lastErrorLabel.text = _lastError;
+                _lastErrorLabel.AddToClassList("mcp-last-error--visible");
+            }
+
+            // Clear error when connection succeeds
+            var svc = McpBackgroundService.Instance;
+            if (svc?.Client != null && svc.Client.IsConnected)
+                _lastError = "";
         }
 
         private void RefreshServerUi()
@@ -324,10 +395,17 @@ namespace UnityAITools.Editor.Windows
                 var currentPath = spm.GetExecutablePath();
                 if (_serverExecutableField.value != currentPath)
                     _serverExecutableField.SetValueWithoutNotify(currentPath);
+
+                var isValid = !string.IsNullOrEmpty(currentPath) && System.IO.File.Exists(currentPath);
+                _serverExecutableField.style.color = isValid || string.IsNullOrEmpty(currentPath)
+                    ? StyleKeyword.Null
+                    : new StyleColor(new Color(0.86f, 0.31f, 0.31f));
             }
 
+            var executableExists = !string.IsNullOrEmpty(spm.GetExecutablePath()) &&
+                                   System.IO.File.Exists(spm.GetExecutablePath());
             if (_startServerButton != null)
-                _startServerButton.SetEnabled(status != ServerProcessManager.ServerStatus.Running);
+                _startServerButton.SetEnabled(status != ServerProcessManager.ServerStatus.Running && executableExists);
             if (_stopServerButton != null)
                 _stopServerButton.SetEnabled(spm.IsManagedProcess);
         }
@@ -457,6 +535,82 @@ namespace UnityAITools.Editor.Windows
             SceneView.RepaintAll();
             AnnotationToolbar.ShowWindow();
             RefreshUi();
+        }
+
+        private async Task OnSnapshotCreateClicked()
+        {
+            var mgr = SnapshotManager.Instance;
+            if (mgr == null) return;
+
+            if (_snapshotCreateButton != null) _snapshotCreateButton.SetEnabled(false);
+            if (_snapshotStatusLabel != null) _snapshotStatusLabel.text = "Creating snapshot...";
+
+            var note = _snapshotNoteField?.value;
+            var (success, message) = await mgr.CreateSnapshotAsync(string.IsNullOrWhiteSpace(note) ? null : note.Trim());
+
+            if (_snapshotStatusLabel != null)
+            {
+                if (success)
+                {
+                    var status = $"Snapshot: {mgr.LastSnapshotTime} ({(mgr.IsGitRepo ? "git" : "file")})";
+                    if (!string.IsNullOrEmpty(mgr.LastSnapshotNote))
+                        status += $" — {mgr.LastSnapshotNote}";
+                    _snapshotStatusLabel.text = status;
+                }
+                else
+                {
+                    _snapshotStatusLabel.text = message;
+                }
+            }
+            if (_snapshotCreateButton != null) _snapshotCreateButton.SetEnabled(true);
+            RefreshSnapshotUi();
+        }
+
+        private async Task OnSnapshotRevertClicked()
+        {
+            var mgr = SnapshotManager.Instance;
+            if (mgr == null || !mgr.HasSnapshot) return;
+
+            if (!EditorUtility.DisplayDialog("Revert Snapshot",
+                "This will revert all changes since the last snapshot. Continue?",
+                "Revert", "Cancel"))
+                return;
+
+            if (_snapshotRevertButton != null) _snapshotRevertButton.SetEnabled(false);
+            if (_snapshotStatusLabel != null) _snapshotStatusLabel.text = "Reverting...";
+
+            var (success, message) = await mgr.RevertToSnapshotAsync();
+
+            if (success && !mgr.IsGitRepo)
+                AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+
+            if (_snapshotStatusLabel != null)
+                _snapshotStatusLabel.text = success ? "Reverted successfully" : message;
+            if (_snapshotRevertButton != null) _snapshotRevertButton.SetEnabled(true);
+            RefreshSnapshotUi();
+        }
+
+        private void RefreshSnapshotUi()
+        {
+            var mgr = SnapshotManager.Instance;
+            if (_snapshotRevertButton != null)
+                _snapshotRevertButton.SetEnabled(mgr != null && mgr.HasSnapshot);
+
+            if (_snapshotStatusLabel != null && mgr != null)
+            {
+                if (mgr.HasSnapshot)
+                {
+                    var status = $"Snapshot: {mgr.LastSnapshotTime} ({(mgr.IsGitRepo ? "git" : "file")})";
+                    if (!string.IsNullOrEmpty(mgr.LastSnapshotNote))
+                        status += $" — {mgr.LastSnapshotNote}";
+                    _snapshotStatusLabel.text = status;
+                }
+                else if (string.IsNullOrEmpty(_snapshotStatusLabel.text) ||
+                         _snapshotStatusLabel.text.StartsWith("Snapshot:"))
+                {
+                    _snapshotStatusLabel.text = "";
+                }
+            }
         }
 
         private async Task RunReadConsoleTestAsync()

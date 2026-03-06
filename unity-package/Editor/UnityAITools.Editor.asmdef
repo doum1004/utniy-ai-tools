@@ -1,7 +1,10 @@
 {
     "name": "UnityAITools.Editor",
     "rootNamespace": "UnityAITools.Editor",
-    "references": [],
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -9,6 +12,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.test-framework",
+            "expression": "",
+            "define": "UNITY_AI_TOOLS_TEST_RUNNER"
+        }
+    ],
     "noEngineReferences": false
 }

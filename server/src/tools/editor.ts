@@ -132,7 +132,7 @@ export function registerEditorTools(server: McpServer, bridge: UnityBridge): voi
             instance: z.string().describe("Instance identifier (Name@hash from unity://instances)"),
         },
         async (params) => {
-            // Instance selection is handled server-side, not forwarded to Unity
+            bridge.setActiveInstance(params.instance);
             return formatToolResult({
                 success: true,
                 data: { active_instance: params.instance },

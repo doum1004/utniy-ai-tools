@@ -15,6 +15,9 @@
             <ui:Label name="status-label" text="Initializing..." class="mcp-connection-status" />
         </ui:VisualElement>
 
+        <!-- Last error (hidden when empty) -->
+        <ui:Label name="last-error-label" text="" class="mcp-last-error" />
+
         <!-- MCP Server Process -->
         <ui:Foldout name="server-foldout" text="MCP Server" class="mcp-server-foldout">
             <ui:TextField name="server-executable-field" label="Executable" />
@@ -39,6 +42,17 @@
         <!-- Tools -->
         <ui:Foldout name="tools-foldout" text="Tools" class="mcp-tools-foldout">
             <ui:Button name="annotate-button" text="Annotate Scene" class="mcp-button mcp-button-annotate" />
+            <ui:TextField name="snapshot-note-field" label="Snapshot Note" />
+            <ui:VisualElement class="mcp-button-row">
+                <ui:Button name="snapshot-create-button" text="Create Snapshot" class="mcp-button" />
+                <ui:Button name="snapshot-revert-button" text="Revert Snapshot" class="mcp-button mcp-button-server-stop" />
+            </ui:VisualElement>
+            <ui:Label name="snapshot-status-label" text="" class="mcp-snapshot-status" />
+        </ui:Foldout>
+
+        <!-- Preferences -->
+        <ui:Foldout name="preferences-foldout" text="Preferences" class="mcp-preferences-foldout">
+            <ui:Toggle name="auto-connect-toggle" label="Auto Connect" />
         </ui:Foldout>
 
         <ui:Foldout name="debug-foldout" text="Debug: Read Console Test">

@@ -34,7 +34,7 @@ Select `unity-package/package.json`.
 
 ### 3. Connect
 
-1. Open `Window > Unity AI Tools`
+1. Open `Window > Unity AI Tools > Control Panel`
 2. Click **Connect**
 3. Configure your MCP client to use `http://localhost:8090/mcp`
 
@@ -56,9 +56,22 @@ Ask your AI assistant: *"Create a red, blue and yellow cube"*
 
 ## Available Tools
 
-`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings` · `simulate_input` · `execute_method` · `read_runtime_state` · `capture_gameplay` · `manage_devlog` · `manage_feedback`
+`manage_scene` · `manage_gameobject` · `find_gameobjects` · `manage_components` · `create_script` · `manage_script` · `script_apply_edits` · `validate_script` · `delete_script` · `get_sha` · `apply_text_edits` · `manage_asset` · `manage_material` · `manage_prefabs` · `manage_editor` · `read_console` · `refresh_unity` · `execute_menu_item` · `batch_execute` · `run_tests` · `get_test_job` · `set_active_instance` · `analyze_scene` · `inspect_gameobject` · `get_project_settings` · `analyze_performance` · `simulate_input` · `execute_method` · `read_runtime_state` · `capture_gameplay` · `manage_snapshot` · `manage_devlog` · `manage_feedback` · `capture_editor_window` · `inspect_ui_tree` · `get_annotated_screenshot`
 
 `refresh_unity` automatically exits Play Mode before refreshing/compiling to reduce domain reload teardown errors from runtime object destruction.
+
+### Performance Analysis
+
+`analyze_performance` audits the scene and project assets across 7 categories: **memory**, **rendering**, **textures**, **meshes**, **lighting**, **physics**, and **audio**. Each category returns detailed stats plus a list of issues with severity (`high`/`medium`/`low`) and actionable fix suggestions.
+
+### Snapshots
+
+`manage_snapshot` creates lightweight restore points before large changes. Supports an optional `note` describing what the snapshot captures. Uses `git` when available (records HEAD, zero-cost), otherwise falls back to file backup.
+
+### Preferences
+
+The Control Panel includes a **Preferences** section with:
+- **Auto Connect** (default: on) — automatically reconnects after domain reloads and unexpected disconnects
 
 ## Session Guardrails
 

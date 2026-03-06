@@ -13,7 +13,7 @@
     "build:mac": "bun build src/index.ts --compile --target=bun-darwin-x64 --outfile dist/umcpserver",
     "build:mac-arm": "bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/umcpserver",
     "build:all": "bun run build:windows && bun run build:linux && bun run build:mac && bun run build:mac-arm",
-    "postbuild": "bun run scripts/add-to-path.ts",
+    "add-to-path": "bun run scripts/add-to-path.ts",
     "install-server": "bun run build && bun run scripts/add-to-path.ts",
     "test": "bun test"
   },

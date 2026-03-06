@@ -28,6 +28,17 @@ const TRANSPORT = process.argv.includes("--transport")
     ? process.argv[process.argv.indexOf("--transport") + 1]
     : "http";
 
+// In stdio mode, redirect all console output to stderr so it doesn't corrupt the MCP protocol on stdout
+if (TRANSPORT === "stdio") {
+    // Cursor surfaces stderr lines as [error]. Keep stdout clean for MCP JSON-RPC framing,
+    // and silence non-error logs by default to avoid noisy false-error entries in IDE logs.
+    if (process.env.CURSOR_STDIO_DEBUG === "1") {
+        console.log = console.error;
+    } else {
+        console.log = () => {};
+    }
+}
+
 // ------------------------------------------------------------------
 // Bootstrap
 // ------------------------------------------------------------------
@@ -117,16 +128,24 @@ async function listenWithRetry<T>(
 }
 
 async function main(): Promise<void> {
+    // 1. Create plugin registry and Unity bridge
+    const registry = new PluginRegistry();
+    const bridge = new UnityBridge(registry);
+
+    // 2. For stdio, connect MCP transport immediately — Cursor sends messages as soon as
+    //    the process spawns, so we must be reading stdin before any slow startup work.
+    if (TRANSPORT === "stdio") {
+        const mcpServer = createMcpServer(bridge);
+        const transport = new StdioServerTransport();
+        await mcpServer.connect(transport);
+    }
+
     console.log("╔══════════════════════════════════════════╗");
     console.log("║        Unity AI Tools MCP Server         ║");
     console.log("╚══════════════════════════════════════════╝");
     console.log();
 
-    // 1. Create plugin registry and Unity bridge
-    const registry = new PluginRegistry();
-    const bridge = new UnityBridge(registry);
-
-    // 2. Start WebSocket server for Unity plugin connections
+    // 3. Start WebSocket server for Unity plugin connections
     const wsHandler = bridge.getWebSocketHandler();
     const wsServer = await listenWithRetry("WebSocket", WS_PORT, () =>
         Bun.serve({
@@ -143,17 +162,13 @@ async function main(): Promise<void> {
 
     console.log(`🔌 Unity WebSocket server listening on ws://localhost:${wsServer.port}`);
 
-    // 3. Start MCP transport
+    // 4. Start HTTP transport (non-stdio mode only)
     let httpServer: import("http").Server | undefined;
 
-    if (TRANSPORT === "stdio") {
-        console.log("📡 MCP transport: stdio");
-        const mcpServer = createMcpServer(bridge);
-        const transport = new StdioServerTransport();
-        await mcpServer.connect(transport);
-    } else {
+    if (TRANSPORT !== "stdio") {
         const app = express();
         app.use(cors());
+        app.use(express.json());
 
         // Streamable HTTP sessions
         const sessions = new Map<string, { transport: StreamableHTTPServerTransport; server: ReturnType<typeof createMcpServer> }>();
@@ -165,7 +180,7 @@ async function main(): Promise<void> {
 
             if (sessionId && sessions.has(sessionId)) {
                 const session = sessions.get(sessionId)!;
-                await session.transport.handleRequest(req, res);
+                await session.transport.handleRequest(req, res, req.body);
                 return;
             }
 
@@ -192,7 +207,7 @@ async function main(): Promise<void> {
 
             const server = createMcpServer(bridge);
             await server.connect(transport);
-            await transport.handleRequest(req, res);
+            await transport.handleRequest(req, res, req.body);
         });
 
         app.get("/mcp", async (req, res) => {
@@ -219,6 +234,21 @@ async function main(): Promise<void> {
             await transport.start();
         });
 
+        // Dedicated SSE endpoint for clients that use /sse (e.g. Cursor)
+        app.get("/sse", async (_req, res) => {
+            const transport = new SSEServerTransport("/messages", res);
+            const server = createMcpServer(bridge);
+
+            sseSessions.set(transport.sessionId, { transport, server });
+
+            transport.onclose = () => {
+                sseSessions.delete(transport.sessionId);
+            };
+
+            await server.connect(transport);
+            await transport.start();
+        });
+
         app.post("/messages", async (req, res) => {
             const sessionId = req.query.sessionId as string;
             const session = sseSessions.get(sessionId);
@@ -226,14 +256,14 @@ async function main(): Promise<void> {
                 res.status(404).json({ error: "SSE session not found" });
                 return;
             }
-            await session.transport.handlePostMessage(req, res);
+            await session.transport.handlePostMessage(req, res, req.body);
         });
 
         app.delete("/mcp", async (req, res) => {
             const sessionId = req.headers["mcp-session-id"] as string | undefined;
             if (sessionId && sessions.has(sessionId)) {
                 const session = sessions.get(sessionId)!;
-                await session.transport.handleRequest(req, res);
+                await session.transport.handleRequest(req, res, req.body);
                 sessions.delete(sessionId);
                 return;
             }

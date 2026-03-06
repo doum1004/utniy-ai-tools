@@ -51,9 +51,20 @@ export class UnityBridge {
     private pending = new Map<string, PendingCommand>();
     private pingTimers = new Map<string, ReturnType<typeof setInterval>>();
     private lastPong = new Map<string, number>();
+    private activeInstanceHash: string | null = null;
 
     constructor(registry: PluginRegistry) {
         this.registry = registry;
+    }
+
+    /** Set the active instance for multi-editor workflows */
+    setActiveInstance(instanceIdentifier: string): void {
+        if (instanceIdentifier.includes("@")) {
+            this.activeInstanceHash = instanceIdentifier.split("@").pop()!;
+        } else {
+            this.activeInstanceHash = instanceIdentifier;
+        }
+        console.log(`[UnityBridge] Active instance set to hash: ${this.activeInstanceHash}`);
     }
 
     /** Get the Bun WebSocket handler config */
@@ -370,6 +381,14 @@ export class UnityBridge {
 
         if (sessions.size === 1) {
             return sessions.keys().next().value!;
+        }
+
+        // Multiple sessions — use the active instance if set
+        if (this.activeInstanceHash) {
+            const activeId = await this.registry.getSessionIdByHash(this.activeInstanceHash);
+            if (activeId) return activeId;
+            // Active instance is stale, clear it
+            this.activeInstanceHash = null;
         }
 
         throw new Error(

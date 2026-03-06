@@ -46,6 +46,7 @@ namespace UnityAITools.Editor.Tools
                 case "get_sha": return GetSha(p);
                 case "script_apply_edits": return ApplyScriptEdits(p);
                 case "apply_text_edits": return ApplyTextEdits(p);
+                case "validate_script": return ValidateScript(p);
                 default:
                     return new CommandResult { success = false, error = $"Unknown command: {commandName}" };
             }
@@ -184,7 +185,10 @@ namespace UnityAITools.Editor.Tools
         {
             var path = p.RequireString("path");
             var editsRaw = p.GetRaw("edits") as List<object>;
-            var initialSha = p.RequireString("initial_sha");
+            // Accept both "sha" (server format) and "initial_sha" (legacy)
+            var initialSha = p.GetString("sha") ?? p.GetString("initial_sha");
+            if (string.IsNullOrEmpty(initialSha))
+                return new CommandResult { success = false, error = "Missing 'sha' parameter" };
 
             var fullPath = Path.Combine(Application.dataPath, "..", path);
             fullPath = Path.GetFullPath(fullPath);
@@ -201,13 +205,19 @@ namespace UnityAITools.Editor.Tools
             if (editsRaw == null || editsRaw.Count == 0)
                 return new CommandResult { success = false, error = "No edits provided" };
 
-            // Apply edits in reverse order if they use indices/lines (if any), but here we match target text
             foreach (var editObj in editsRaw)
             {
                 if (editObj is not Dictionary<string, object> editDict) continue;
 
-                var targetText = editDict.TryGetValue("targetText", out var tt) ? tt?.ToString() : null;
-                var replacementText = editDict.TryGetValue("replacementText", out var rt) ? rt?.ToString() : null;
+                // Accept both "old_text" (server format) and "targetText" (legacy)
+                var targetText = editDict.TryGetValue("old_text", out var ot) ? ot?.ToString() : null;
+                if (targetText == null)
+                    targetText = editDict.TryGetValue("targetText", out var tt) ? tt?.ToString() : null;
+
+                var replacementText = editDict.TryGetValue("new_text", out var nt) ? nt?.ToString() : null;
+                if (replacementText == null)
+                    replacementText = editDict.TryGetValue("replacementText", out var rt) ? rt?.ToString() : null;
+
                 var exactMatch = editDict.TryGetValue("exactMatch", out var em) && em is bool b ? b : true;
 
                 if (string.IsNullOrEmpty(targetText)) continue;
@@ -249,8 +259,49 @@ namespace UnityAITools.Editor.Tools
 
         private CommandResult ApplyTextEdits(ToolParams p)
         {
-            // Same implementation as script_apply_edits for backwards compatibility
             return ApplyScriptEdits(p);
+        }
+
+        private CommandResult ValidateScript(ToolParams p)
+        {
+            var contents = p.RequireString("contents");
+            var path = p.GetString("path") ?? "Assets/Scripts/__validation_temp__.cs";
+
+            // Basic structural validation without triggering a full recompile.
+            // Checks for common C# syntax issues.
+            var issues = new List<Dictionary<string, object>>();
+
+            // Check brace balance
+            int braceDepth = 0;
+            foreach (var ch in contents)
+            {
+                if (ch == '{') braceDepth++;
+                else if (ch == '}') braceDepth--;
+                if (braceDepth < 0) break;
+            }
+            if (braceDepth != 0)
+                issues.Add(new Dictionary<string, object> { { "type", "error" }, { "message", $"Mismatched braces (depth {braceDepth})" } });
+
+            // Check for namespace declaration
+            if (!contents.Contains("namespace ") && !contents.Contains("class ") && !contents.Contains("struct "))
+                issues.Add(new Dictionary<string, object> { { "type", "warning" }, { "message", "No namespace, class, or struct declaration found" } });
+
+            // Check for using statements at top
+            if (!contents.TrimStart().StartsWith("using ") && !contents.TrimStart().StartsWith("//") && !contents.TrimStart().StartsWith("#"))
+                issues.Add(new Dictionary<string, object> { { "type", "warning" }, { "message", "Script does not start with using directives" } });
+
+            return new CommandResult
+            {
+                success = true,
+                data = new Dictionary<string, object>
+                {
+                    { "path", path },
+                    { "valid", issues.Count == 0 },
+                    { "issues", issues },
+                    { "issue_count", issues.Count },
+                    { "note", "Basic structural validation only. Full compilation errors are shown after refresh_unity." }
+                }
+            };
         }
     }
 }

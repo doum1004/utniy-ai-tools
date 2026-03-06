@@ -18,6 +18,9 @@ import {
     registerPlayTestTools,
     registerDevLogTools,
     registerFeedbackTools,
+    registerUIDebugTools,
+    registerSnapshotTools,
+    registerPerformanceTools,
 } from "./tools/index";
 import { registerResources } from "./resources/index";
 import {
@@ -153,6 +156,9 @@ export function createMcpServer(bridge: UnityBridge): McpServer {
     registerPlayTestTools(server, bridge);
     registerDevLogTools(server, bridge);
     registerFeedbackTools(server, bridge);
+    registerUIDebugTools(server, bridge);
+    registerSnapshotTools(server, bridge);
+    registerPerformanceTools(server, bridge);
 
     // Register resources
     registerResources(server, bridge);

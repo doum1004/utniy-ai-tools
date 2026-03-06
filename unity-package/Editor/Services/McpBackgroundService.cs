@@ -20,6 +20,18 @@ namespace UnityAITools.Editor.Services
     {
         public static McpBackgroundService Instance { get; private set; }
 
+        private const string KeyAutoConnect = "UnityAITools_AutoConnect";
+
+        /// <summary>
+        /// When true, the service will automatically reconnect after domain reloads
+        /// and attempt to maintain a persistent connection. Stored in EditorPrefs.
+        /// </summary>
+        public static bool AutoConnect
+        {
+            get => EditorPrefs.GetBool(KeyAutoConnect, true);
+            set => EditorPrefs.SetBool(KeyAutoConnect, value);
+        }
+
         public WebSocketClient Client { get; private set; }
 
         private volatile bool _isConnecting;
@@ -93,6 +105,7 @@ namespace UnityAITools.Editor.Services
             _dispatcher.RegisterHandler("get_sha", scriptHandler);
             _dispatcher.RegisterHandler("script_apply_edits", scriptHandler);
             _dispatcher.RegisterHandler("apply_text_edits", scriptHandler);
+            _dispatcher.RegisterHandler("validate_script", scriptHandler);
 
             var sceneHandler = new SceneHandler();
             _dispatcher.RegisterHandler("manage_scene", sceneHandler);
@@ -107,6 +120,7 @@ namespace UnityAITools.Editor.Services
             _dispatcher.RegisterHandler("get_editor_selection", editorHandler);
             _dispatcher.RegisterHandler("get_project_tags", editorHandler);
             _dispatcher.RegisterHandler("get_project_layers", editorHandler);
+            _dispatcher.RegisterHandler("get_menu_items", editorHandler);
 
             var componentHandler = new ComponentHandler();
             _dispatcher.RegisterHandler("manage_components", componentHandler);
@@ -127,6 +141,22 @@ namespace UnityAITools.Editor.Services
 
             var batchHandler = new BatchHandler(_dispatcher);
             _dispatcher.RegisterHandler("batch_execute", batchHandler);
+
+#if UNITY_AI_TOOLS_TEST_RUNNER
+            var testRunnerHandler = new TestRunnerHandler();
+            _dispatcher.RegisterHandler("run_tests", testRunnerHandler);
+            _dispatcher.RegisterHandler("get_test_job", testRunnerHandler);
+#endif
+
+            var uiDebugHandler = new UIDebugHandler();
+            _dispatcher.RegisterHandler("capture_editor_window", uiDebugHandler);
+            _dispatcher.RegisterHandler("inspect_ui_tree", uiDebugHandler);
+
+            var snapshotHandler = new SnapshotHandler();
+            _dispatcher.RegisterHandler("manage_snapshot", snapshotHandler);
+
+            var performanceHandler = new PerformanceHandler();
+            _dispatcher.RegisterHandler("analyze_performance", performanceHandler);
 
             var playTestHandler = new PlayTestHandler();
             _dispatcher.RegisterHandler("simulate_input", playTestHandler);
@@ -170,7 +200,7 @@ namespace UnityAITools.Editor.Services
                 EditorApplication.delayCall += () => EditorApplication.update -= BackgroundTick;
                 NotifyStatusChanged(); 
                 
-                if (!_isDisconnectingIntentional)
+                if (!_isDisconnectingIntentional && AutoConnect)
                 {
                     Debug.LogWarning("[UnityAITools] Unintentional disconnect detected, will auto-reconnect");
                     _ = Task.Run(() => TryReconnectingAsync());
@@ -193,7 +223,7 @@ namespace UnityAITools.Editor.Services
             // Auto-reconnect after domain reload (play mode enter/exit).
             // Use Task.Run so this fires even if Unity is currently unfocused.
             _wasConnected = SessionState.GetBool(KeyWasConnected, false);
-            if (_wasConnected)
+            if (_wasConnected && AutoConnect)
             {
                 var url = SessionState.GetString(KeyServerUrl, _lastServerUrl);
                 Debug.Log($"[UnityAITools] Domain reload detected, auto-reconnecting to {url}...");
@@ -332,7 +362,7 @@ namespace UnityAITools.Editor.Services
                     await Task.Delay(MonitorIntervalMs, token);
 
                     // If we should be connected but aren't, trigger a reconnect.
-                    if (!_isDisconnectingIntentional && !Client.IsConnected && !_isConnecting && _wasConnected)
+                    if (!_isDisconnectingIntentional && !Client.IsConnected && !_isConnecting && _wasConnected && AutoConnect)
                     {
                         Debug.Log("[UnityAITools] Monitor: connection lost, triggering reconnect...");
                         await TryReconnectingAsync();

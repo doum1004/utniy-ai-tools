@@ -15,3 +15,6 @@ export { registerAnalysisTools } from "./analysis";
 export { registerPlayTestTools } from "./playtest";
 export { registerDevLogTools } from "./devlog";
 export { registerFeedbackTools } from "./feedback";
+export { registerUIDebugTools } from "./ui-debug";
+export { registerSnapshotTools } from "./snapshot";
+export { registerPerformanceTools } from "./performance";

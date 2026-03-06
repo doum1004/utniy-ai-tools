@@ -371,15 +371,24 @@ namespace UnityAITools.Editor.Services
                 }
                 else
                 {
-                    var psi = new ProcessStartInfo("kill", $"-TERM -- -{pid}")
+                    // First try killing the process directly
+                    try
                     {
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                    };
-                    using var proc = Process.Start(psi);
-                    proc?.WaitForExit(3000);
+                        Process.GetProcessById(pid)?.Kill();
+                    }
+                    catch
+                    {
+                        // Fallback: use pkill to find child processes by parent PID
+                        var psi = new ProcessStartInfo("pkill", $"-TERM -P {pid}")
+                        {
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                        };
+                        using var proc = Process.Start(psi);
+                        proc?.WaitForExit(3000);
+                    }
                 }
             }
             catch (Exception ex)

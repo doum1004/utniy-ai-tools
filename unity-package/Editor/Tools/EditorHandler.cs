@@ -42,6 +42,7 @@ namespace UnityAITools.Editor.Tools
                 case "get_editor_selection": return GetEditorSelection();
                 case "get_project_tags": return GetProjectTags();
                 case "get_project_layers": return GetProjectLayers();
+                case "get_menu_items": return GetMenuItems();
                 default:
                     return new CommandResult { success = false, error = $"Unknown command: {commandName}" };
             }
@@ -303,6 +304,52 @@ namespace UnityAITools.Editor.Tools
                 {
                     { "layers", layers },
                     { "count", layers.Count }
+                }
+            };
+        }
+
+        private CommandResult GetMenuItems()
+        {
+            var items = new List<string>();
+            // Collect common menu paths that are always available
+            var knownPrefixes = new[]
+            {
+                "File", "Edit", "Assets", "GameObject", "Component", "Window", "Help"
+            };
+
+            foreach (var prefix in knownPrefixes)
+            {
+                items.Add(prefix);
+            }
+
+            // Use Unsupported.GetSubmenus to get actual menu items (reflection-based)
+            try
+            {
+                var unsupportedType = typeof(EditorApplication).Assembly.GetType("UnityEditor.Unsupported");
+                if (unsupportedType != null)
+                {
+                    var method = unsupportedType.GetMethod("GetSubmenus",
+                        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+                    if (method != null)
+                    {
+                        var allMenus = method.Invoke(null, new object[] { "" }) as string[];
+                        if (allMenus != null)
+                        {
+                            items.Clear();
+                            items.AddRange(allMenus);
+                        }
+                    }
+                }
+            }
+            catch { /* fallback to known prefixes */ }
+
+            return new CommandResult
+            {
+                success = true,
+                data = new Dictionary<string, object>
+                {
+                    { "menu_items", items },
+                    { "count", items.Count }
                 }
             };
         }

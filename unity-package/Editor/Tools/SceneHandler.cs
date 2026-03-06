@@ -43,6 +43,8 @@ namespace UnityAITools.Editor.Tools
                 case "get_active": return GetActiveScene();
                 case "load": return LoadScene(p);
                 case "save": return SaveScene();
+                case "create": return CreateScene(p);
+                case "set_active": return SetActiveScene(p);
                 case "screenshot": return CaptureScreenshot(p);
                 case "annotated_screenshot": return CaptureAnnotatedScreenshot(p);
                 default:
@@ -138,6 +140,62 @@ namespace UnityAITools.Editor.Tools
             {
                 return new CommandResult { success = false, error = $"Failed to load scene: {ex.Message}" };
             }
+        }
+
+        private CommandResult CreateScene(ToolParams p)
+        {
+            var sceneName = p.RequireString("scene_name") ?? p.RequireString("sceneName");
+
+            try
+            {
+                var newScene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+                var scenePath = sceneName.EndsWith(".unity") ? sceneName : sceneName + ".unity";
+
+                var dir = Path.GetDirectoryName(Path.Combine(Application.dataPath, "..", scenePath));
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+
+                EditorSceneManager.SaveScene(newScene, scenePath);
+
+                return new CommandResult
+                {
+                    success = true,
+                    data = new Dictionary<string, object>
+                    {
+                        { "created", scenePath },
+                        { "name", newScene.name }
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult { success = false, error = $"Failed to create scene: {ex.Message}" };
+            }
+        }
+
+        private CommandResult SetActiveScene(ToolParams p)
+        {
+            var sceneName = p.RequireString("scene_name") ?? p.RequireString("sceneName");
+
+            for (var i = 0; i < SceneManager.sceneCount; i++)
+            {
+                var scene = SceneManager.GetSceneAt(i);
+                if (scene.name == sceneName || scene.path == sceneName)
+                {
+                    SceneManager.SetActiveScene(scene);
+                    return new CommandResult
+                    {
+                        success = true,
+                        data = new Dictionary<string, object>
+                        {
+                            { "active_scene", scene.name },
+                            { "path", scene.path }
+                        }
+                    };
+                }
+            }
+
+            return new CommandResult { success = false, error = $"Scene '{sceneName}' is not loaded. Load it first." };
         }
 
         private CommandResult SaveScene()
