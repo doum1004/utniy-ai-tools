@@ -30,11 +30,24 @@ namespace UnityAITools.Editor.Windows
         private bool _showReadConsoleDebug;
         private string _readConsoleTestResponse = "No test run yet.";
 
+        // Server process UI
+        private Foldout _serverFoldout;
+        private bool _showServerFoldout;
+        private Label _serverStatusLabel;
+        private TextField _serverExecutableField;
+        private Button _startServerButton;
+        private Button _stopServerButton;
+
+        // Connection UI
+        private Foldout _connectionFoldout;
+        private bool _showConnectionFoldout;
         private Label _statusLabel;
         private Label _sessionValueLabel;
         private TextField _serverUrlField;
         private Button _connectButton;
         private Button _disconnectButton;
+        private Foldout _toolsFoldout;
+        private bool _showToolsFoldout;
         private Button _annotateButton;
         private Foldout _debugFoldout;
         private TextField _typesField;
@@ -68,6 +81,18 @@ namespace UnityAITools.Editor.Windows
                 };
             }
 
+            if (ServerProcessManager.Instance != null)
+            {
+                ServerProcessManager.Instance.OnStatusChanged += OnExternalStateChanged;
+            }
+            else
+            {
+                EditorApplication.delayCall += () => {
+                    if (ServerProcessManager.Instance != null)
+                        ServerProcessManager.Instance.OnStatusChanged += OnExternalStateChanged;
+                };
+            }
+
             AnnotationSession.Instance.OnChanged += OnExternalStateChanged;
         }
 
@@ -76,6 +101,10 @@ namespace UnityAITools.Editor.Windows
             if (McpBackgroundService.Instance != null)
             {
                 McpBackgroundService.Instance.OnStatusChanged -= OnExternalStateChanged;
+            }
+            if (ServerProcessManager.Instance != null)
+            {
+                ServerProcessManager.Instance.OnStatusChanged -= OnExternalStateChanged;
             }
             AnnotationSession.Instance.OnChanged -= OnExternalStateChanged;
         }
@@ -111,7 +140,6 @@ namespace UnityAITools.Editor.Windows
         private void BuildHelpBoxes()
         {
             var introContainer = rootVisualElement.Q<VisualElement>("intro-help-container");
-            var configContainer = rootVisualElement.Q<VisualElement>("config-help-container");
             var debugContainer = rootVisualElement.Q<VisualElement>("debug-help-container");
 
             if (introContainer != null)
@@ -120,14 +148,6 @@ namespace UnityAITools.Editor.Windows
                 introContainer.Add(new HelpBox(
                     "Connect to the MCP server to enable AI-assisted development.\nThe connection stays alive in the background even if you close this window.",
                     HelpBoxMessageType.Info));
-            }
-
-            if (configContainer != null)
-            {
-                configContainer.Clear();
-                configContainer.Add(new HelpBox(
-                    "Configure your MCP client to connect to:\nhttp://localhost:8090/mcp",
-                    HelpBoxMessageType.None));
             }
 
             if (debugContainer != null)
@@ -141,11 +161,27 @@ namespace UnityAITools.Editor.Windows
 
         private void BindElements()
         {
+            // Server process elements
+            _serverFoldout = rootVisualElement.Q<Foldout>("server-foldout");
+            if (_serverFoldout != null)
+                _serverFoldout.value = _showServerFoldout;
+            _serverStatusLabel = rootVisualElement.Q<Label>("server-status-label");
+            _serverExecutableField = rootVisualElement.Q<TextField>("server-executable-field");
+            _startServerButton = rootVisualElement.Q<Button>("start-server-button");
+            _stopServerButton = rootVisualElement.Q<Button>("stop-server-button");
+
+            // Connection elements
+            _connectionFoldout = rootVisualElement.Q<Foldout>("connection-foldout");
+            if (_connectionFoldout != null)
+                _connectionFoldout.value = _showConnectionFoldout;
             _statusLabel = rootVisualElement.Q<Label>("status-label");
             _sessionValueLabel = rootVisualElement.Q<Label>("session-value-label");
             _serverUrlField = rootVisualElement.Q<TextField>("server-url-field");
             _connectButton = rootVisualElement.Q<Button>("connect-button");
             _disconnectButton = rootVisualElement.Q<Button>("disconnect-button");
+            _toolsFoldout = rootVisualElement.Q<Foldout>("tools-foldout");
+            if (_toolsFoldout != null)
+                _toolsFoldout.value = _showToolsFoldout;
             _annotateButton = rootVisualElement.Q<Button>("annotate-button");
             _debugFoldout = rootVisualElement.Q<Foldout>("debug-foldout");
             _typesField = rootVisualElement.Q<TextField>("types-field");
@@ -155,6 +191,14 @@ namespace UnityAITools.Editor.Windows
             _runReadConsoleTestButton = rootVisualElement.Q<Button>("run-read-console-button");
             _readConsoleResponseField = rootVisualElement.Q<TextField>("read-console-response-field");
 
+            // Server executable field
+            if (_serverExecutableField != null)
+            {
+                var spm = ServerProcessManager.Instance;
+                _serverExecutableField.value = spm != null ? spm.GetExecutablePath() : "";
+            }
+
+            // Connection fields
             if (_serverUrlField != null)
                 _serverUrlField.value = _serverUrl;
             if (_debugFoldout != null)
@@ -180,6 +224,24 @@ namespace UnityAITools.Editor.Windows
 
         private void BindCallbacks()
         {
+            // Server process callbacks
+            if (_serverFoldout != null)
+                _serverFoldout.RegisterValueChangedCallback(evt => _showServerFoldout = evt.newValue);
+            if (_serverExecutableField != null)
+            {
+                _serverExecutableField.RegisterValueChangedCallback(evt =>
+                {
+                    ServerProcessManager.Instance?.SetExecutablePath(evt.newValue);
+                });
+            }
+            if (_startServerButton != null)
+                _startServerButton.clicked += OnStartServerClicked;
+            if (_stopServerButton != null)
+                _stopServerButton.clicked += OnStopServerClicked;
+
+            // Connection callbacks
+            if (_connectionFoldout != null)
+                _connectionFoldout.RegisterValueChangedCallback(evt => _showConnectionFoldout = evt.newValue);
             if (_serverUrlField != null)
             {
                 _serverUrlField.RegisterValueChangedCallback(evt =>
@@ -193,6 +255,8 @@ namespace UnityAITools.Editor.Windows
                 _connectButton.clicked += OnConnectClicked;
             if (_disconnectButton != null)
                 _disconnectButton.clicked += OnDisconnectClicked;
+            if (_toolsFoldout != null)
+                _toolsFoldout.RegisterValueChangedCallback(evt => _showToolsFoldout = evt.newValue);
             if (_annotateButton != null)
                 _annotateButton.clicked += OnAnnotateClicked;
             if (_debugFoldout != null)
@@ -216,10 +280,64 @@ namespace UnityAITools.Editor.Windows
 
         private void RefreshUi()
         {
+            RefreshServerUi();
+            RefreshConnectionUi();
+        }
+
+        private void RefreshServerUi()
+        {
+            var spm = ServerProcessManager.Instance;
+            if (spm == null)
+            {
+                if (_serverStatusLabel != null) _serverStatusLabel.text = "Initializing...";
+                if (_startServerButton != null) _startServerButton.SetEnabled(false);
+                if (_stopServerButton != null) _stopServerButton.SetEnabled(false);
+                return;
+            }
+
+            var status = spm.Status;
+            if (_serverStatusLabel != null)
+            {
+                _serverStatusLabel.RemoveFromClassList("mcp-server-status-running");
+                _serverStatusLabel.RemoveFromClassList("mcp-server-status-stopped");
+                _serverStatusLabel.RemoveFromClassList("mcp-server-status-unknown");
+
+                switch (status)
+                {
+                    case ServerProcessManager.ServerStatus.Running:
+                        _serverStatusLabel.text = spm.IsManagedProcess ? "Running (managed)" : "Running (external)";
+                        _serverStatusLabel.AddToClassList("mcp-server-status-running");
+                        break;
+                    case ServerProcessManager.ServerStatus.Stopped:
+                        _serverStatusLabel.text = "Not Running";
+                        _serverStatusLabel.AddToClassList("mcp-server-status-stopped");
+                        break;
+                    default:
+                        _serverStatusLabel.text = "Checking...";
+                        _serverStatusLabel.AddToClassList("mcp-server-status-unknown");
+                        break;
+                }
+            }
+
+            if (_serverExecutableField != null)
+            {
+                var currentPath = spm.GetExecutablePath();
+                if (_serverExecutableField.value != currentPath)
+                    _serverExecutableField.SetValueWithoutNotify(currentPath);
+            }
+
+            if (_startServerButton != null)
+                _startServerButton.SetEnabled(status != ServerProcessManager.ServerStatus.Running);
+            if (_stopServerButton != null)
+                _stopServerButton.SetEnabled(spm.IsManagedProcess);
+        }
+
+        private void RefreshConnectionUi()
+        {
             var svc = McpBackgroundService.Instance;
             if (svc == null)
             {
-                if (_statusLabel != null) _statusLabel.text = "Status: Initializing background service...";
+                if (_statusLabel != null) _statusLabel.text = "Initializing...";
                 if (_sessionValueLabel != null) _sessionValueLabel.text = "-";
                 if (_connectButton != null) _connectButton.SetEnabled(false);
                 if (_disconnectButton != null) _disconnectButton.SetEnabled(false);
@@ -229,10 +347,30 @@ namespace UnityAITools.Editor.Windows
 
             var isConnected = svc.Client != null && svc.Client.IsConnected;
             var isConnecting = svc.IsConnecting;
-            var statusText = isConnected ? "Connected" : (isConnecting ? "Connecting..." : "Disconnected");
 
             if (_statusLabel != null)
-                _statusLabel.text = $"Status: {statusText}";
+            {
+                _statusLabel.RemoveFromClassList("mcp-server-status-running");
+                _statusLabel.RemoveFromClassList("mcp-server-status-stopped");
+                _statusLabel.RemoveFromClassList("mcp-server-status-unknown");
+
+                if (isConnected)
+                {
+                    _statusLabel.text = "Connected";
+                    _statusLabel.AddToClassList("mcp-server-status-running");
+                }
+                else if (isConnecting)
+                {
+                    _statusLabel.text = "Connecting...";
+                    _statusLabel.AddToClassList("mcp-server-status-unknown");
+                }
+                else
+                {
+                    _statusLabel.text = "Disconnected";
+                    _statusLabel.AddToClassList("mcp-server-status-stopped");
+                }
+            }
+
             if (_sessionValueLabel != null)
                 _sessionValueLabel.text = isConnected && svc.Client?.SessionId != null ? svc.Client.SessionId : "-";
             if (_connectButton != null)
@@ -244,6 +382,52 @@ namespace UnityAITools.Editor.Windows
                 _annotateButton.SetEnabled(true);
                 _annotateButton.text = AnnotationSession.Instance.IsAnnotating ? "Stop Annotating" : "Annotate Scene";
             }
+        }
+
+        private void OnStartServerClicked()
+        {
+            var spm = ServerProcessManager.Instance;
+            if (spm == null) return;
+
+            if (spm.StartServer())
+            {
+                // Auto-connect to the WebSocket once the server is ready
+                EditorApplication.delayCall += () => _ = AutoConnectAfterServerStartAsync();
+            }
+            RefreshUi();
+        }
+
+        private async Task AutoConnectAfterServerStartAsync()
+        {
+            var svc = McpBackgroundService.Instance;
+            var spm = ServerProcessManager.Instance;
+            if (svc == null || spm == null) return;
+            if (svc.Client != null && svc.Client.IsConnected) return;
+
+            // Wait for the server to become responsive (up to 10 seconds)
+            for (var i = 0; i < 20; i++)
+            {
+                await Task.Delay(500);
+                if (spm.Status == ServerProcessManager.ServerStatus.Running)
+                {
+                    svc.Connect(_serverUrlField != null ? _serverUrlField.value : _serverUrl);
+                    RefreshUi();
+                    return;
+                }
+            }
+            Debug.LogWarning("[UnityAITools] Server did not become responsive in time. Try connecting manually.");
+        }
+
+        private void OnStopServerClicked()
+        {
+            var spm = ServerProcessManager.Instance;
+            if (spm == null) return;
+
+            var svc = McpBackgroundService.Instance;
+            svc?.Disconnect();
+
+            spm.StopServer();
+            RefreshUi();
         }
 
         private void OnConnectClicked()

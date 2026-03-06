@@ -3,24 +3,44 @@
         <ui:Label name="title-label" text="Unity AI Tools" class="mcp-title" />
         <ui:VisualElement name="intro-help-container" class="mcp-help-container" />
 
-        <ui:Label name="status-label" text="Status: Initializing..." class="mcp-status" />
-
-        <ui:VisualElement name="session-row" class="mcp-row">
-            <ui:Label text="Session" class="mcp-session-key" />
-            <ui:Label name="session-value-label" text="-" class="mcp-session-value" />
+        <!-- MCP Server Status (always visible) -->
+        <ui:VisualElement name="server-status-row" class="mcp-row">
+            <ui:Label text="Server" class="mcp-session-key" />
+            <ui:Label name="server-status-label" text="Checking..." class="mcp-server-status" />
         </ui:VisualElement>
 
+        <!-- Connection Status (always visible) -->
+        <ui:VisualElement name="connection-status-row" class="mcp-row">
+            <ui:Label text="Status" class="mcp-session-key" />
+            <ui:Label name="status-label" text="Initializing..." class="mcp-connection-status" />
+        </ui:VisualElement>
+
+        <!-- MCP Server Process -->
+        <ui:Foldout name="server-foldout" text="MCP Server" class="mcp-server-foldout">
+            <ui:TextField name="server-executable-field" label="Executable" />
+            <ui:VisualElement class="mcp-button-row">
+                <ui:Button name="start-server-button" text="Start Server" class="mcp-button mcp-button-server-start" />
+                <ui:Button name="stop-server-button" text="Stop Server" class="mcp-button mcp-button-server-stop" />
+            </ui:VisualElement>
+        </ui:Foldout>
+
+        <!-- Connection -->
+        <ui:Foldout name="connection-foldout" text="Connection" class="mcp-connection-foldout">
+            <ui:VisualElement name="session-row" class="mcp-row">
+                <ui:Label text="Session" class="mcp-session-key" />
+                <ui:Label name="session-value-label" text="-" class="mcp-session-value" />
+            </ui:VisualElement>
+
             <ui:TextField name="server-url-field" label="Server URL" />
-        <ui:Button name="connect-button" text="Connect" class="mcp-button mcp-button-primary" />
-        <ui:Button name="disconnect-button" text="Disconnect" class="mcp-button" />
+            <ui:Button name="connect-button" text="Connect" class="mcp-button mcp-button-primary" />
+            <ui:Button name="disconnect-button" text="Disconnect" class="mcp-button" />
+        </ui:Foldout>
 
-        <ui:VisualElement class="mcp-separator" />
+        <!-- Tools -->
+        <ui:Foldout name="tools-foldout" text="Tools" class="mcp-tools-foldout">
+            <ui:Button name="annotate-button" text="Annotate Scene" class="mcp-button mcp-button-annotate" />
+        </ui:Foldout>
 
-        <ui:Button name="annotate-button" text="Annotate Scene" class="mcp-button mcp-button-annotate" />
-
-        <ui:VisualElement name="config-help-container" class="mcp-help-container" />
-
-        <ui:VisualElement class="mcp-separator" />
         <ui:Foldout name="debug-foldout" text="Debug: Read Console Test">
             <ui:VisualElement name="debug-help-container" class="mcp-help-container" />
             <ui:TextField name="types-field" label="Types (csv)" />
