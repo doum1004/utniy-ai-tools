@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { UnityBridge } from "../transport/unity-bridge";
-import { DevLogEntry, DevLogFile, loadDevLog, resolveStorageTarget, saveDevLog } from "../devlog-storage";
+import { DevLogEntry, loadDevLog, resolveStorageTarget, saveDevLog } from "../devlog-storage";
 
 // ---------------------------------------------------------------------------
 // Types
