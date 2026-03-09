@@ -12,11 +12,11 @@ This skill guides you through identifying and fixing performance issues in Unity
 Never optimize blindly. Always gather data before making changes.
 
 ```
-1. analyze_scene(include_details=true) → get baseline stats
-2. get_project_settings(categories=["quality", "rendering"]) → understand config
-3. Identify bottlenecks from data
-4. Apply targeted fixes
-5. Re-analyze to verify improvement
+1. analyze_performance() → full audit with prioritized issues and fix suggestions
+2. analyze_scene(include_details=true) → scene-level stats
+3. get_project_settings(categories=["quality", "rendering"]) → understand config
+4. Fix issues starting from highest severity
+5. Re-run analyze_performance() to verify improvement
 ```
 
 ## Performance Budget Guidelines
@@ -32,12 +32,21 @@ Never optimize blindly. Always gather data before making changes.
 ### How to Check
 
 ```
-analyze_scene() returns:
-- total_triangles → compare against budget
-- total_vertices → vertex count
-- unique_materials → material count
-- light_count + light_breakdown → realtime light count
-- renderer_count → approximate draw call indicator
+analyze_performance() returns per-category stats + issues:
+- rendering → total_triangles, unique_materials, expensive_objects, multi_material_renderers
+- lighting → realtime_shadow_casters, light counts by type, expensive_shadow_lights
+- textures → uncompressed_count, oversized_count, total_memory_mb
+- meshes → should_be_static_count, read_write_mesh_count
+- physics → non_convex_on_rigidbody, active_rigidbodies, mesh_colliders_non_convex
+- audio → large_clips, total_audio_memory_mb
+- memory → total_allocated_mb, gfx_allocated_mb, mono_used_mb
+
+Each issue includes severity (high/medium/low) and a concrete fix suggestion.
+
+analyze_scene() returns scene-level counts:
+- total_triangles, total_vertices, unique_materials
+- light_count + light_breakdown
+- renderer_count, missing_component_count
 ```
 
 ## Optimization Checklist
@@ -45,21 +54,22 @@ analyze_scene() returns:
 ### Rendering
 
 - [ ] **Static batching**: Mark non-moving objects as Static
-  - Use `inspect_gameobject` → check `is_static` and `static_flags`
+  - `analyze_performance(categories=["meshes"])` → `should_be_static` lists objects to fix
   - Fix: `manage_gameobject(action="modify", target="...", static=true)`
 - [ ] **Material consolidation**: Reduce unique material count
-  - Check `analyze_scene` → `unique_materials`
+  - `analyze_performance(categories=["rendering"])` → `unique_materials`, `multi_material_details`
   - Objects sharing the same visual appearance should share materials
+- [ ] **High-poly objects**: Reduce mesh detail or add LODs
+  - `analyze_performance(categories=["rendering"])` → `expensive_objects` lists top offenders
 - [ ] **Occlusion culling**: Enable for indoor/complex scenes
 - [ ] **LOD groups**: Add for detailed meshes visible at varying distances
 - [ ] **Light baking**: Bake static lights instead of realtime for static scenes
-  - Check `analyze_scene(include_details=true)` → light details for shadow settings
+  - `analyze_performance(categories=["lighting"])` → `expensive_shadow_lights`, `realtime_shadow_casters`
 
 ### Physics
 
 - [ ] **Collider complexity**: Use primitive colliders (Box, Sphere, Capsule) over MeshColliders
-  - `analyze_scene` → `collider_count` gives total
-  - Use `find_gameobjects(search_term="MeshCollider", search_method="by_component")` to find mesh colliders
+  - `analyze_performance(categories=["physics"])` → `non_convex_on_rigidbody` (high severity), `mesh_colliders_non_convex`
 - [ ] **Physics settings**: Verify timestep and solver iterations
   - `get_project_settings(categories=["physics"])` → check fixed_timestep and solver iterations
 - [ ] **Layer-based collision matrix**: Disable unnecessary collision pairs
@@ -71,11 +81,16 @@ analyze_scene() returns:
 - [ ] **Object pooling**: Reuse frequently spawned/destroyed objects
 - [ ] **Coroutine yields**: Cache `WaitForSeconds` instances
 
-### Memory
+### Memory & Assets
 
-- [ ] **Texture sizes**: Use appropriate resolution (not 4K for small objects)
-- [ ] **Audio compression**: Compressed in memory for music, decompress on load for short SFX
-- [ ] **Mesh compression**: Enable in import settings for meshes
+- [ ] **Texture compression**: Fix uncompressed textures (RGBA32/RGB24)
+  - `analyze_performance(categories=["textures"])` → `uncompressed_textures` (high severity)
+- [ ] **Texture sizes**: Reduce oversized textures (>2048px)
+  - `analyze_performance(categories=["textures"])` → `oversized_textures`, `total_memory_mb`
+- [ ] **Mesh Read/Write**: Disable unless needed at runtime (doubles memory)
+  - `analyze_performance(categories=["meshes"])` → `read_write_meshes`
+- [ ] **Audio load types**: Use Streaming for large clips (>5MB)
+  - `analyze_performance(categories=["audio"])` → `large_clips`
 - [ ] **Resource unloading**: Call `Resources.UnloadUnusedAssets()` on scene transitions
 
 ## Object Pooling Pattern
@@ -121,10 +136,11 @@ public class ObjectPool : MonoBehaviour
 Run this full review after building a scene or before a build:
 
 ```
-Step 1: Scene Analysis
-  analyze_scene(include_details=true)
-  → Record: total_triangles, unique_materials, light_count, renderer_count
-  → Flag if any exceed platform budget
+Step 1: Full Performance Audit
+  analyze_performance()
+  → Review issues list sorted by severity (high → medium → low)
+  → Each issue has a concrete suggestion — apply them in order
+  → Note: covers rendering, textures, meshes, lighting, physics, audio, memory
 
 Step 2: Project Settings Check
   get_project_settings(categories=["quality", "rendering", "physics"])
@@ -133,19 +149,21 @@ Step 2: Project Settings Check
   → Verify physics timestep (0.02 = 50Hz is standard)
 
 Step 3: Problematic Object Scan
-  For objects flagged by analyze_scene (missing components, deep hierarchy):
+  For expensive objects flagged by analyze_performance:
   inspect_gameobject(target="ObjectName")
   → Check: is_static flags (should be set for environment)
   → Check: component count (too many components on one object?)
   → Check: total_descendants (deeply nested objects cause overhead)
 
-Step 4: Heavy Component Search
-  find_gameobjects(search_term="MeshCollider", search_method="by_component")
-  → Consider replacing with primitive colliders
+Step 4: Apply Fixes
+  Use suggestions from analyze_performance issues:
+  → Mark objects as static: manage_gameobject(action="modify", target="...", static=true)
+  → Replace colliders: manage_components(action="remove/add", ...)
+  → Fix scripts: script_apply_edits(...)
 
-Step 5: Visual Verification
-  manage_scene(action="screenshot")
-  → Confirm visual quality is maintained after optimizations
+Step 5: Verify
+  analyze_performance() → confirm issue_count decreased
+  manage_scene(action="screenshot") → visual quality preserved
 ```
 
 ## Quick Wins

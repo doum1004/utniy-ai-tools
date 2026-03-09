@@ -88,7 +88,13 @@ Read `unity://editor/menu-items` to find available menu paths before calling `ex
 | `analyze_scene` | Scene stats, counts, missing refs, quality review |
 | `inspect_gameobject` | Deep object inspection — issues, refs, prefab status |
 | `get_project_settings` | Read physics, quality, rendering, player settings |
+| `analyze_performance` | Performance audit — memory, rendering, textures, meshes, lighting, physics, audio |
+| `manage_snapshot` | Create/revert project snapshots with optional notes |
+| `capture_editor_window` | Screenshot any Unity Editor window |
+| `inspect_ui_tree` | Inspect VisualElement tree of Editor windows |
+| `get_annotated_screenshot` | Get user-annotated scene screenshot |
 | `manage_devlog` | Dev journal — log plans, decisions, milestones, issues, iterations |
+| `manage_feedback` | Local feedback journal for tools/skills/workflows |
 
 ## Available Resources
 
@@ -139,6 +145,24 @@ After any significant scene changes, run this review cycle:
 3. For flagged objects: inspect_gameobject(target="...") — check issues
 4. get_project_settings(categories=["quality", "rendering"]) — verify config
 5. Fix issues found → re-analyze to confirm
+```
+
+### Performance Review
+
+```
+1. analyze_performance() — full audit across all categories
+   → Issues sorted by severity with fix suggestions
+2. Fix high-severity issues first (uncompressed textures, non-convex mesh colliders, etc.)
+3. analyze_performance() — verify improvement
+```
+
+### Safe Changes with Snapshots
+
+```
+1. manage_snapshot(action="create", note="before refactoring X") — save restore point
+2. Make changes
+3. If something breaks: manage_snapshot(action="revert")
+4. Check current state: manage_snapshot(action="status")
 ```
 
 ### Finding and Modifying Objects
