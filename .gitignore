@@ -3,7 +3,7 @@ node_modules/
 dist/
 *.tgz
 .env
-
+*.bun-build
 # Unity project generated files
 unity-project/Library/
 unity-project/Temp/
